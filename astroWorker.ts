@@ -103,22 +103,8 @@ function findBoundaryCrossing(
 // ---------------------------------------------------------------------------
 // Worker initialization
 // ---------------------------------------------------------------------------
-async function initWorker(origin: string) {
+async function initWorker(seplBuf: ArrayBuffer, semoBuf: ArrayBuffer) {
   try {
-    const [seplRes, semoRes] = await Promise.all([
-      fetch(`${origin}/ephe/sepl_18.se1`),
-      fetch(`${origin}/ephe/semo_18.se1`)
-    ]);
-
-    if (!seplRes.ok || !semoRes.ok) {
-      throw new Error(`Failed to fetch ephemeris files: sepl_18.se1 (${seplRes.status}), semo_18.se1 (${semoRes.status})`);
-    }
-
-    const [seplBuf, semoBuf] = await Promise.all([
-      seplRes.arrayBuffer(),
-      semoRes.arrayBuffer()
-    ]);
-
     swe = new SwissEph();
     await swe.initSwissEph();
 
@@ -142,10 +128,15 @@ async function initWorker(origin: string) {
 // Worker Message Handler
 // ---------------------------------------------------------------------------
 self.onmessage = async (event: MessageEvent) => {
-  const { type, key, origin, lat, lon, date } = event.data;
+  const { type, key, seplBuf, semoBuf, error, lat, lon, date } = event.data;
 
   if (type === 'INIT') {
-    await initWorker(origin);
+    await initWorker(seplBuf, semoBuf);
+    return;
+  }
+
+  if (type === 'INIT_FAIL') {
+    self.postMessage({ type: 'ERROR', message: `Main thread fetch failed: ${error}` });
     return;
   }
 
@@ -270,6 +261,70 @@ self.onmessage = async (event: MessageEvent) => {
       const sunLonAtNewMoon = (sunSidereal - daysSinceNewMoon + 360) % 360;
       const monthIdx = Math.floor(sunLonAtNewMoon / 30);
 
+      // 6. Calculate Navagraha Positions
+      const Grahas = [
+        { id: 0, name: 'Sun', hindiName: 'सूर्य' },
+        { id: 1, name: 'Moon', hindiName: 'चन्द्र' },
+        { id: 4, name: 'Mars', hindiName: 'मंगल' },
+        { id: 2, name: 'Mercury', hindiName: 'बुध' },
+        { id: 5, name: 'Jupiter', hindiName: 'गुरु' },
+        { id: 3, name: 'Venus', hindiName: 'शुक्र' },
+        { id: 6, name: 'Saturn', hindiName: 'शनि' },
+        { id: 10, name: 'Rahu', hindiName: 'राहु' }
+      ];
+
+      const zodiacSigns = [
+        { eng: 'Aries', hin: 'मेष' },
+        { eng: 'Taurus', hin: 'वृषभ' },
+        { eng: 'Gemini', hin: 'मिथुन' },
+        { eng: 'Cancer', hin: 'कर्क' },
+        { eng: 'Leo', hin: 'सिंह' },
+        { eng: 'Virgo', hin: 'कन्या' },
+        { eng: 'Libra', hin: 'तुला' },
+        { eng: 'Scorpio', hin: 'वृश्चिक' },
+        { eng: 'Sagittarius', hin: 'धनु' },
+        { eng: 'Capricorn', hin: 'मकर' },
+        { eng: 'Aquarius', hin: 'कुम्भ' },
+        { eng: 'Pisces', hin: 'मीन' }
+      ];
+
+      const planetsResult: any[] = [];
+      for (const g of Grahas) {
+        const pos = swe.calc_ut(jdMidnight, g.id, 2 | 256);
+        const lon = pos[0];
+        const speed = pos[3];
+        const siderealLon = (lon - ayanamsa + 360) % 360;
+        
+        const signIdx = Math.floor(siderealLon / 30);
+        const sign = zodiacSigns[signIdx];
+        
+        planetsResult.push({
+          name: g.name,
+          hindiName: g.hindiName,
+          longitude: siderealLon,
+          speed: speed,
+          isRetrograde: speed < 0,
+          sign: sign.eng,
+          signHindi: sign.hin
+        });
+      }
+
+      // Add Ketu (Ketu is always opposite to Rahu, meaning Rahu + 180 degrees)
+      const rahu = planetsResult.find(p => p.name === 'Rahu')!;
+      const ketuLon = (rahu.longitude + 180) % 360;
+      const ketuSignIdx = Math.floor(ketuLon / 30);
+      const ketuSign = zodiacSigns[ketuSignIdx];
+      
+      planetsResult.push({
+        name: 'Ketu',
+        hindiName: 'केतु',
+        longitude: ketuLon,
+        speed: rahu.speed,
+        isRetrograde: true,
+        sign: ketuSign.eng,
+        signHindi: ketuSign.hin
+      });
+
       self.postMessage({
         type: 'RESULT',
         key,
@@ -289,7 +344,11 @@ self.onmessage = async (event: MessageEvent) => {
           karanaPercent,
           karanaRemainingHours,
           monthsSinceEpoch: monthIdx,
-          diffDays: 0
+          diffDays: 0,
+          sunSidereal,
+          moonSidereal,
+          ayanamsa,
+          planets: planetsResult
         }
       });
       return;
