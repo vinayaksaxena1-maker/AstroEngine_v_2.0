@@ -1,7 +1,7 @@
 {
   "name": "sanatan-astro-engine",
   "version": "1.0.0",
-  "description": "High-precision Vedic Panchang, Astronomical and Hindu Festival Calculation Engine powered by Swiss Ephemeris WASM",
+  "description": "High-precision Vedic Panchang, Astronomical and Hindu Festival Calculation Engine powered by Proprietary MIT/JPL Sanatan Engine",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -16,18 +16,24 @@
     "dist",
     "src",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
     "build:types": "tsc --emitDeclarationOnly",
-    "build:bundle": "esbuild src/index.ts --bundle --platform=neutral --format=esm --outfile=dist/index.js --external:swisseph-wasm",
+    "build:bundle": "esbuild src/index.ts --bundle --platform=neutral --format=esm --outfile=dist/index.js",
     "build": "npm run build:types && npm run build:bundle",
-    "test": "node tests/test.mjs"
+    "test": "node tests/test.mjs",
+    "baseline:generate": "node scripts/generate_baseline.mjs",
+    "audit:feasibility": "node scripts/audit_feasibility.mjs",
+    "audit:phase2": "node tests/audit_phase2_positions.mjs",
+    "audit:phase3": "node tests/audit_phase3_riseset_bhavas.mjs",
+    "audit:phase4": "node tests/audit_phase4_panchang.mjs",
+    "audit:phase6": "node tests/audit_phase6_stress.mjs"
   },
   "keywords": [
     "panchang",
     "vedic-astrology",
-    "swiss-ephemeris",
     "hindu-calendar",
     "tithi",
     "nakshatra",
@@ -35,12 +41,13 @@
     "muhurat",
     "festivals",
     "astronomy",
-    "wasm"
+    "jpl",
+    "drik-panchang"
   ],
   "author": "Vinayak Saxena",
-  "license": "AGPL-3.0-or-later",
+  "license": "UNLICENSED",
   "dependencies": {
-    "swisseph-wasm": "^0.0.5"
+    "astronomy-engine": "^2.1.19"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",

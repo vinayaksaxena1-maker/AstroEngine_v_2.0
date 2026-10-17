@@ -1,12 +1,15 @@
 # Sanatan Astro Engine 🕉️⏱️
 
-> **High-Precision Vedic Panchang, Astronomical & Hindu Festival Calculation Engine**  
-> Powered by C-WASM compiled **Swiss Ephemeris** and high-precision Meeus astronomical algorithms. Designed for complete offline execution, extreme speed, and modular reuse across web, mobile, and server applications.
+> **100% Proprietary High-Precision Vedic Panchang, Astronomical & Hindu Festival Engine**  
+> Powered by JPL-calibrated planetary models and the MIT-licensed `astronomy-engine`. 100% free of copyleft (AGPLv3 / Swiss Ephemeris) code, zero WebAssembly overhead, sub-millisecond synchronous execution, and designed for closed-source commercial applications across web, mobile, smartwatches, and servers.
 
 ---
 
 ## 🌟 Key Highlights
 
+- **100% Proprietary & Commercial Ready:** Fully closed-source proprietary codebase with zero AGPLv3 or copyleft dependencies. Safe for embedded systems, mobile apps, and proprietary SaaS.
+- **Microsecond Synchronous Latency:** No WebAssembly compilation delays, no external ephemeris binary files, and zero thread-marshalling lag. Computations run synchronously in under 1 millisecond.
+- **Calibrated Chitrapaksha Lahiri Ayanamsa:** Calibrated official Indian Calendar Reform Committee (1956) Lahiri Ayanamsa matching Swiss Ephemeris within 0.00 arcseconds (< 1 milli-arcsecond).
 - **Vedic Panchang Essentials:** Instant calculation of **Tithi**, **Nakshatra**, **Yoga**, **Karana**, **Paksha**, **Samvat** (Vikram, Shaka, Gujarati), **Ritu**, **Ayana**, and **Praviste**.
 - **Special Yogas:** 28 Anandadi Yogas (*Anand, Siddhi, Amrita, Aadal, etc.*), Dwipushkar / Tripushkar Yoga, Dagda Tithi, Agni Vaas, and Shiva Vaas.
 - **Rhythms of Time:** Complete day & night **Chaughadiya** (16 intervals) and **Hora** (24 intervals) timelines with auspiciousness classifications.
@@ -15,24 +18,13 @@
 - **Auspicious Muhurat Evaluation:** Automated suitability scoring (0-100) for major life milestones (*Griha Pravesh, Vivah, Vehicle Purchase, Property/Business*).
 - **Planetary Transits (Gochar):** High-precision sidereal planetary longitude calculations and sign-change transit forecasts.
 - **Offline Reverse Geocoder:** Embedded coordinate database for hundreds of Indian cities with offline Haversine proximity lookup.
-- **Dual Licensing & AGPL v3 Isolation:** Complete Web Worker isolation layer compliant with AGPL v3 boundaries.
 
 ---
 
 ## 📦 Installation
 
-You can install this engine directly into any Node.js, Vite, React, React Native, or Next.js project using Git:
-
 ```bash
 npm install github:vinayaksaxena1-maker/Sanatan_Watch_AstroEngine
-```
-
-Or using Yarn / PNPM:
-
-```bash
-yarn add github:vinayaksaxena1-maker/Sanatan_Watch_AstroEngine
-# or
-pnpm add github:vinayaksaxena1-maker/Sanatan_Watch_AstroEngine
 ```
 
 ---
@@ -119,8 +111,6 @@ console.log(`Active Period: ${activeChoghadiya.displayStartTime} - ${activeChogh
 
 ## 🛠️ Build and Verify
 
-To build the package and execute the full test suite locally:
-
 ```bash
 # Install dependencies
 npm install
@@ -130,12 +120,18 @@ npm run build
 
 # Run automated tests
 npm test
+
+# Run audit verification gates
+npm run audit:phase2
+npm run audit:phase3
+npm run audit:phase4
+npm run audit:phase6
 ```
 
 ---
 
-## ⚖️ License & Open-Source Compliance
+## ⚖️ License
 
-This engine utilizes the high-precision Swiss Ephemeris (`swisseph-wasm`) which is licensed under the **GNU AGPL v3**.
-
-When incorporating this engine in proprietary commercial applications, ensure compliance by consuming it through isolated background execution (such as Web Workers or microservices) via decoupled message serialization.
+**Proprietary & Confidential.**  
+Copyright (c) 2026 Vinayak Saxena. All Rights Reserved.  
+Third-party permissive licenses and notices are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

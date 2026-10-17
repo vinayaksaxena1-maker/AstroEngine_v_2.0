@@ -44,7 +44,7 @@ export declare const MONTHS_ENGLISH_HINDI: {
     hin: string;
     ritu: string;
 }[];
-export declare function calculateSolarTimes(lat: number, lon: number, date: Date): import("./astronomicalEngine").SolarTimes;
+export declare function calculateSolarTimes(lat: number, lon: number, date: Date): import("./core/sanatan_jpl_bridge").SolarTimesResult;
 export declare function calculatePaya(naksIdx: number): PayaDetail;
 export declare function calculateDagdaTithi(dayOfWeek: number, tithiIdx: number): DagdaTithiDetail;
 export declare function calculateShivaVaas(tithiIdx: number): ShivaVaasDetail;
