@@ -1,0 +1,49 @@
+{
+  "name": "sanatan-astro-engine",
+  "version": "1.0.0",
+  "description": "High-precision Vedic Panchang, Astronomical and Hindu Festival Calculation Engine powered by Swiss Ephemeris WASM",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build:types": "tsc --emitDeclarationOnly",
+    "build:bundle": "esbuild src/index.ts --bundle --platform=neutral --format=esm --outfile=dist/index.js --external:swisseph-wasm",
+    "build": "npm run build:types && npm run build:bundle",
+    "test": "node tests/test.mjs"
+  },
+  "keywords": [
+    "panchang",
+    "vedic-astrology",
+    "swiss-ephemeris",
+    "hindu-calendar",
+    "tithi",
+    "nakshatra",
+    "chaughadiya",
+    "muhurat",
+    "festivals",
+    "astronomy",
+    "wasm"
+  ],
+  "author": "Vinayak Saxena",
+  "license": "AGPL-3.0-or-later",
+  "dependencies": {
+    "swisseph-wasm": "^0.0.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "typescript": "^5.8.2"
+  }
+}
