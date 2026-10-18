@@ -408,4 +408,3 @@ The engine's `earlier` and `later` choices mean the first and second matching UT
 ### Ayanamsha selection is applied to the chart
 
 `ayanamshaSystem` supports `'Lahiri'`, `'KP'`, and `'Raman'`. The engine computes the selected offset and applies it while calculating the ascendant, midheaven, cusps, and planetary sidereal longitudes. The returned `metadata.ayanamshaType` and `metadata.ayanamshaValue` identify the choice used. Apps should select the named system; they should not supply a raw ayanamsha number.
-
