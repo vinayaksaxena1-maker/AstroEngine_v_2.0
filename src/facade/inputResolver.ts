@@ -62,7 +62,10 @@ export interface ResolvedInputResult {
 }
 
 function validateCalendarDate(year: number, month: number, day: number): void {
-  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+  if (!Number.isInteger(year) || year < 1800 || year > 2100) {
+    throw new InvalidDateError(`Year ${year} is outside supported calendar range [1800, 2100].`);
+  }
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
     throw new InvalidDateError(`Invalid calendar date: ${year}-${month}-${day}.`);
   }
   const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
@@ -183,8 +186,7 @@ function resolveCivilTimeToUtc(
     return new Date(candidates[0]);
   }
 
-  // Default: If no timezone or offset specified, treat as UTC
-  return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  throw new InvalidDateError('Civil date and time requires an explicit timezone.');
 }
 
 /**
