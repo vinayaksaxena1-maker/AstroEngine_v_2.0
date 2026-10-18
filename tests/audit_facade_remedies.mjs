@@ -356,11 +356,15 @@ for (const [label, chart, expected] of [
   for (const cusp of chart.cusps) {
     const baseCusp = lahiriChart.cusps.find(c => c.houseNumber === cusp.houseNumber);
     assert(!!baseCusp && Math.abs(angleDelta(cusp.midLongitude, baseCusp.midLongitude) - expected) < 1e-8,
-      label + ' cusp shift is applied to house ' + cusp.houseNumber);
+      label + ' cusp midpoint shift is applied to house ' + cusp.houseNumber);
+    assert(!!baseCusp && Math.abs(angleDelta(cusp.startLongitude, baseCusp.startLongitude) - expected) < 1e-8,
+      label + ' cusp start shift is applied to house ' + cusp.houseNumber);
+    assert(!!baseCusp && Math.abs(angleDelta(cusp.endLongitude, baseCusp.endLongitude) - expected) < 1e-8,
+      label + ' cusp end shift is applied to house ' + cusp.houseNumber);
   }
 }
 
-for (const badDate of ['2030-02-29', '2026-04-31', '2026-02-30']) {
+for (const badDate of ['0000-01-01', '2030-02-29', '2026-04-31', '2026-02-30']) {
   let rejected = false;
   try {
     calculateCompleteHoroscope({ ...validationBase, date: badDate });
