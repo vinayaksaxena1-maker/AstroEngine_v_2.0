@@ -40,6 +40,7 @@ export {
   drik_rise_trans,
   drik_houses,
   drik_get_ayanamsa_ut,
+  getAyanamshaForSystem,
   drik_julday,
   drik_revjul,
   drik_set_sid_mode,
@@ -72,6 +73,7 @@ export {
   SEFLG_SIDEREAL,
   SE_SIDM_LAHIRI
 } from './core/sanatan_jpl_bridge';
+export type { AyanamshaSystem } from './core/sanatan_jpl_bridge';
 
 // 4. Complete Vedic Panchang Calculations
 export {
