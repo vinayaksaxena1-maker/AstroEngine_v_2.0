@@ -58,12 +58,12 @@ const result = calculateCompleteHoroscope({
 ```
 
 ### Option B: IANA Timezone Identifier (Recommended for Daylight Saving Zones)
-Pass `ianaTimezone` (e.g. `'Asia/Kolkata'`, `'America/New_York'`, `'Europe/London'`). The engine uses native `Intl` resolution with iterative boundary convergence to handle daylight saving time (DST) shifts:
+Pass `ianaTimezone` (e.g. `'Asia/Kolkata'`, `'America/New_York'`, `'Europe/London'`). The engine uses IANA time-zone rules. Non-existent spring-forward times are rejected. Repeated fall-back times require `dstDisambiguation: 'earlier' | 'later'` so the app can ask the user which occurrence they mean:
 
 ```typescript
 const result = calculateCompleteHoroscope({
   date: '2026-03-08',
-  time: '03:30:00',
+  time: '02:30:00',
   ianaTimezone: 'America/New_York', // Automatically resolves EDT/EST shift
   latitude: 40.7128,
   longitude: -74.0060
@@ -376,3 +376,36 @@ The remedies engine (`horoscope.remedies`) automatically assesses planetary stre
 
 ### Mantras & Charity:
 * Prescribes exact classical japa counts (e.g., Jupiter 19,000, Saturn 23,000) and specific sattvic items for donation for active Sade Sati, Manglik, or Kaal Sarp doshas.
+
+
+---
+
+## 8. Strict date, timezone, and ayanamsha behavior (v1.1.1)
+
+### Civil date and time must include a timezone
+
+When using `date` and `time`, pass exactly one of `timezoneOffset` or `ianaTimezone`. If neither is supplied, the engine throws `InvalidDateError`; it does not assume UTC. To mean UTC explicitly, pass `timezoneOffset: 0`. When using an IANA zone, use the birth location's zone for that date.
+
+Invalid calendar dates such as `2030-02-29`, `2026-04-31`, and `2026-02-30` are rejected. Valid leap dates such as `2024-02-29` are accepted.
+
+### Daylight-saving gaps and repeated times
+
+A local time skipped by a spring-forward clock change is rejected. A time that occurs twice during a fall-back change is also rejected unless the app passes a choice:
+
+```typescript
+const result = calculateCompleteHoroscope({
+  date: '2026-11-01',
+  time: '01:30:00',
+  ianaTimezone: 'America/New_York',
+  dstDisambiguation: 'earlier', // or 'later'; ask the user when the time is ambiguous
+  latitude: 40.7128,
+  longitude: -74.0060
+});
+```
+
+The engine's `earlier` and `later` choices mean the first and second matching UTC instants. Do not assume the app's current timezone or silently pick one.
+
+### Ayanamsha selection is applied to the chart
+
+`ayanamshaSystem` supports `'Lahiri'`, `'KP'`, and `'Raman'`. The engine computes the selected offset and applies it while calculating the ascendant, midheaven, cusps, and planetary sidereal longitudes. The returned `metadata.ayanamshaType` and `metadata.ayanamshaValue` identify the choice used. Apps should select the named system; they should not supply a raw ayanamsha number.
+
