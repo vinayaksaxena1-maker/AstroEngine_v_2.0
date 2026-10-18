@@ -316,6 +316,114 @@ assert(
   `Charity remedies populated (${sampleChart.remedies.charities.length} charities generated)`
 );
 
+// -----------------------------------------------------------------------------
+// GATE 6: AYANAMSHA PARITY, STRICT CALENDAR & DST SAFEGUARDS
+// -----------------------------------------------------------------------------
+console.log('\n>>> TEST GATE 6: AYANAMSHA PARITY, STRICT CALENDAR & DST SAFEGUARDS');
+
+const validationBase = {
+  date: '2000-01-01',
+  time: '12:00:00',
+  timezoneOffset: 0,
+  latitude: 28.6139,
+  longitude: 77.2090
+};
+
+const lahiriChart = calculateCompleteHoroscope({ ...validationBase, ayanamshaSystem: 'Lahiri' });
+const kpChart = calculateCompleteHoroscope({ ...validationBase, ayanamshaSystem: 'KP' });
+const ramanChart = calculateCompleteHoroscope({ ...validationBase, ayanamshaSystem: 'Raman' });
+const angleDelta = (value, baseline) => ((value - baseline + 540) % 360) - 180;
+const absoluteAscendant = chart => chart.ascendant.signIndex * 30 + chart.ascendant.degree;
+const kpExpectedShift = lahiriChart.metadata.ayanamshaValue - kpChart.metadata.ayanamshaValue;
+const ramanExpectedShift = lahiriChart.metadata.ayanamshaValue - ramanChart.metadata.ayanamshaValue;
+
+assert(lahiriChart.metadata.ayanamshaType === 'Lahiri', 'Lahiri selection is recorded in metadata');
+assert(kpChart.metadata.ayanamshaType === 'KP', 'KP selection is recorded in metadata');
+assert(ramanChart.metadata.ayanamshaType === 'Raman', 'Raman selection is recorded in metadata');
+assert(Math.abs(kpExpectedShift - 0.09833333333333333) < 1e-10, 'KP offset is Lahiri minus 0°05′54″');
+
+for (const [label, chart, expected] of [
+  ['KP', kpChart, kpExpectedShift],
+  ['Raman', ramanChart, ramanExpectedShift]
+]) {
+  assert(Math.abs(angleDelta(absoluteAscendant(chart), absoluteAscendant(lahiriChart)) - expected) < 1e-8,
+    label + ' ascendant uses the selected ayanamsha');
+  for (const planet of chart.planets) {
+    const basePlanet = lahiriChart.planets.find(p => p.name === planet.name);
+    assert(!!basePlanet && Math.abs(angleDelta(planet.longitude, basePlanet.longitude) - expected) < 1e-8,
+      label + ' longitude shift is applied to ' + planet.name);
+  }
+  for (const cusp of chart.cusps) {
+    const baseCusp = lahiriChart.cusps.find(c => c.houseNumber === cusp.houseNumber);
+    assert(!!baseCusp && Math.abs(angleDelta(cusp.midLongitude, baseCusp.midLongitude) - expected) < 1e-8,
+      label + ' cusp shift is applied to house ' + cusp.houseNumber);
+  }
+}
+
+for (const badDate of ['2030-02-29', '2026-04-31', '2026-02-30']) {
+  let rejected = false;
+  try {
+    calculateCompleteHoroscope({ ...validationBase, date: badDate });
+  } catch (e) {
+    rejected = e instanceof InvalidDateError;
+  }
+  assert(rejected, badDate + ' is rejected as an invalid calendar date');
+}
+
+let validLeapAccepted = true;
+try {
+  calculateCompleteHoroscope({ ...validationBase, date: '2024-02-29' });
+} catch {
+  validLeapAccepted = false;
+}
+assert(validLeapAccepted, '2024-02-29 is accepted as a valid leap date');
+
+let missingTimezoneRejected = false;
+try {
+  calculateCompleteHoroscope({
+    date: '2026-10-19', time: '12:00:00',
+    latitude: 28.6139, longitude: 77.2090
+  });
+} catch (e) {
+  missingTimezoneRejected = e instanceof InvalidDateError;
+}
+assert(missingTimezoneRejected, 'Civil date/time without a timezone is rejected');
+
+let dstGapRejected = false;
+try {
+  calculateCompleteHoroscope({
+    date: '2026-03-08', time: '02:30:00', ianaTimezone: 'America/New_York',
+    latitude: 40.7128, longitude: -74.0060
+  });
+} catch (e) {
+  dstGapRejected = e instanceof InvalidDateError;
+}
+assert(dstGapRejected, 'Non-existent spring-forward local time is rejected');
+
+let dstFoldRejected = false;
+try {
+  calculateCompleteHoroscope({
+    date: '2026-11-01', time: '01:30:00', ianaTimezone: 'America/New_York',
+    latitude: 40.7128, longitude: -74.0060
+  });
+} catch (e) {
+  dstFoldRejected = e instanceof InvalidDateError;
+}
+assert(dstFoldRejected, 'Repeated fall-back local time requires a user choice');
+
+const dstEarlier = calculateCompleteHoroscope({
+  date: '2026-11-01', time: '01:30:00', ianaTimezone: 'America/New_York',
+  dstDisambiguation: 'earlier', latitude: 40.7128, longitude: -74.0060
+});
+const dstLater = calculateCompleteHoroscope({
+  date: '2026-11-01', time: '01:30:00', ianaTimezone: 'America/New_York',
+  dstDisambiguation: 'later', latitude: 40.7128, longitude: -74.0060
+});
+assert(dstEarlier.metadata.resolvedUtcInstant === '2026-11-01T05:30:00.000Z',
+  'Fall-back earlier choice resolves to the first occurrence');
+assert(dstLater.metadata.resolvedUtcInstant === '2026-11-01T06:30:00.000Z',
+  'Fall-back later choice resolves to the second occurrence');
+
 // Summary Report
 console.log('\n================================================================');
 console.log('  AUDIT SUMMARY REPORT');
