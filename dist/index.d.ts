@@ -32,4 +32,8 @@ export * from './shadbala/shadbalaEngine';
 export * from './ashtakavarga/ashtakavargaEngine';
 export * from './dasha/dashaEngine';
 export * from './synthesis/predictiveEngine';
+export * from './facade/inputResolver';
+export * from './facade/svgRenderers';
+export * from './facade/horoscopeFacade';
+export * from './remedies/remedyEngine';
 //# sourceMappingURL=index.d.ts.map

@@ -1,6 +1,6 @@
 {
   "name": "sanatan-astro-engine",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "High-precision Vedic Panchang, Astronomical and Hindu Festival Calculation Engine powered by Proprietary MIT/JPL Sanatan Engine",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,6 +15,7 @@
   "files": [
     "dist",
     "src",
+    "docs",
     "README.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md"
@@ -23,7 +24,7 @@
     "build:types": "tsc --emitDeclarationOnly",
     "build:bundle": "esbuild src/index.ts --bundle --platform=neutral --format=esm --outfile=dist/index.js",
     "build": "npm run build:types && npm run build:bundle",
-    "test": "node tests/test.mjs",
+    "test": "node tests/test.mjs && node tests/audit_facade_remedies.mjs",
     "baseline:generate": "node scripts/generate_baseline.mjs",
     "audit:feasibility": "node scripts/audit_feasibility.mjs",
     "audit:phase2": "node tests/audit_phase2_positions.mjs",
@@ -36,8 +37,9 @@
     "audit:ashtakavarga": "node tests/audit_module4_ashtakavarga.mjs",
     "audit:dashas": "node tests/audit_module5_dashas.mjs",
     "audit:predictive": "node tests/audit_module6_advanced.mjs",
+    "audit:facade": "node tests/audit_facade_remedies.mjs",
     "audit:stress": "node tests/audit_final_stress_suite.mjs",
-    "audit:all": "npm run audit:kundli && npm run audit:vargas && npm run audit:shadbala && npm run audit:ashtakavarga && npm run audit:dashas && npm run audit:predictive && npm run audit:stress"
+    "audit:all": "npm run audit:kundli && npm run audit:vargas && npm run audit:shadbala && npm run audit:ashtakavarga && npm run audit:dashas && npm run audit:predictive && npm run audit:facade && npm run audit:stress"
   },
   "keywords": [
     "panchang",

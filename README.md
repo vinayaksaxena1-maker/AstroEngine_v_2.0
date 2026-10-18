@@ -9,6 +9,8 @@
 
 - **100% Proprietary & Commercial Ready:** Fully closed-source proprietary codebase with zero AGPLv3 or copyleft dependencies. Safe for embedded systems, mobile apps, and proprietary SaaS.
 - **Microsecond Synchronous Latency:** No WebAssembly compilation delays, no external ephemeris binary files, and zero thread-marshalling lag. Computations run synchronously in under 1 millisecond.
+- **Master Plug-and-Play Facade (`calculateCompleteHoroscope`):** Single entrypoint delivering Kundli, Shodashvarga (D1-D60), Shadbala, Ashtakavarga SAV 337, Dashas, Parashari Yogas/Doshas, Classical Vedic Remedies, and multi-style SVG charts.
+- **Classical Vedic Remedies Engine:** Automated prescription of Ratna (Life/Lucky/Benefic stones with strict Dusthana/Maraka prohibitions), 1-14 Mukhi Rudrakshas, Beej/Gayatri Mantras, and Charity/Daan Upay.
 - **Calibrated Chitrapaksha Lahiri Ayanamsa:** Calibrated official Indian Calendar Reform Committee (1956) Lahiri Ayanamsa matching Swiss Ephemeris within 0.00 arcseconds (< 1 milli-arcsecond).
 - **Vedic Panchang Essentials:** Instant calculation of **Tithi**, **Nakshatra**, **Yoga**, **Karana**, **Paksha**, **Samvat** (Vikram, Shaka, Gujarati), **Ritu**, **Ayana**, and **Praviste**.
 - **Special Yogas:** 28 Anandadi Yogas (*Anand, Siddhi, Amrita, Aadal, etc.*), Dwipushkar / Tripushkar Yoga, Dagda Tithi, Agni Vaas, and Shiva Vaas.
@@ -21,6 +23,11 @@
 
 ---
 
+## 📖 App Developer Guide
+For complete integration documentation, timezone best practices, data dictionary, and React/Vue/Mobile UI recipes, see [docs/APP_DEVELOPER_GUIDE.md](docs/APP_DEVELOPER_GUIDE.md).
+
+---
+
 ## 📦 Installation
 
 ```bash
@@ -30,6 +37,25 @@ npm install github:vinayaksaxena1-maker/Sanatan_Watch_AstroEngine
 ---
 
 ## 🚀 Quick Start Examples
+
+### 0. Complete Horoscope Facade & Vedic Remedies (One-Line Call)
+
+```typescript
+import { calculateCompleteHoroscope } from 'sanatan-astro-engine';
+
+const horoscope = calculateCompleteHoroscope({
+  date: '1995-05-15',
+  time: '14:30:00',
+  timezoneOffset: 5.5, // IST (+5.5) or pass ianaTimezone: 'Asia/Kolkata'
+  latitude: 28.6139,
+  longitude: 77.2090
+});
+
+console.log('Lagna Sign:', horoscope.ascendant.sign);
+console.log('Recommended Gemstone:', horoscope.remedies.gemstones.lifeStone?.name);
+console.log('Target Rudraksha:', horoscope.remedies.rudraksha.primary.mukhiName);
+console.log('North Indian SVG Chart:\n', horoscope.charts.northIndianSvg);
+```
 
 ### 1. Compute Full Vedic Panchang for Any Location & Date
 

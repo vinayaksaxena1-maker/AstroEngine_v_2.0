@@ -171,3 +171,9 @@ export * from './dasha/dashaEngine';
 // 17. Predictive Synthesis & Specialized Systems (KP, Jaimini, Tajik, Lal Kitab, Panch Pakshi)
 export * from './synthesis/predictiveEngine';
 
+// 18. Master Plug-and-Play Facade, Input Resolver & Vedic Remedies Engine
+export * from './facade/inputResolver';
+export * from './facade/svgRenderers';
+export * from './facade/horoscopeFacade';
+export * from './remedies/remedyEngine';
+

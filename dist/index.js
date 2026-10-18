@@ -10656,6 +10656,797 @@ function evaluatePanchPakshi(moonLongitude, queryHour = 12) {
     currentActivity: activities[actIndex]
   };
 }
+
+// src/facade/inputResolver.ts
+var InvalidCoordinateError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "InvalidCoordinateError";
+  }
+};
+var InvalidDateError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "InvalidDateError";
+  }
+};
+function resolveCivilTimeToUtc(dateStr, timeStr, timezoneOffset, ianaTimezone) {
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(dateStr)) {
+    throw new InvalidDateError(`Invalid date format "${dateStr}". Expected "YYYY-MM-DD".`);
+  }
+  const timeRegex = /^\d{2}:\d{2}(:\d{2})?$/;
+  if (!timeRegex.test(timeStr)) {
+    throw new InvalidDateError(`Invalid time format "${timeStr}". Expected "HH:mm" or "HH:mm:ss".`);
+  }
+  const [yearStr, monthStr, dayStr] = dateStr.split("-");
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const day = parseInt(dayStr, 10);
+  if (month < 1 || month > 12) {
+    throw new InvalidDateError(`Invalid month ${month}. Must be between 1 and 12.`);
+  }
+  if (day < 1 || day > 31) {
+    throw new InvalidDateError(`Invalid day ${day}. Must be between 1 and 31.`);
+  }
+  const timeParts = timeStr.split(":");
+  const hour = parseInt(timeParts[0], 10);
+  const minute = parseInt(timeParts[1], 10);
+  const second = timeParts.length > 2 ? parseInt(timeParts[2], 10) : 0;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
+    throw new InvalidDateError(`Invalid time values: ${hour}:${minute}:${second}.`);
+  }
+  if (timezoneOffset !== void 0) {
+    if (typeof timezoneOffset !== "number" || isNaN(timezoneOffset) || !isFinite(timezoneOffset) || timezoneOffset < -14 || timezoneOffset > 14) {
+      throw new InvalidDateError(`Invalid timezoneOffset "${timezoneOffset}". Must be a number between -14 and 14 hours.`);
+    }
+    const civilUtcMs = Date.UTC(year, month - 1, day, hour, minute, second);
+    const offsetMs = Math.round(timezoneOffset * 3600 * 1e3);
+    return new Date(civilUtcMs - offsetMs);
+  }
+  if (ianaTimezone) {
+    let formatter;
+    try {
+      formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: ianaTimezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+      });
+    } catch {
+      throw new InvalidDateError(`Invalid or unsupported IANA timezone "${ianaTimezone}".`);
+    }
+    const targetCivilMs = Date.UTC(year, month - 1, day, hour, minute, second);
+    let guessMs = targetCivilMs;
+    for (let i = 0; i < 3; i++) {
+      const parts = formatter.formatToParts(new Date(guessMs));
+      const p = {};
+      for (const part of parts) {
+        p[part.type] = part.value;
+      }
+      const tzHour = parseInt(p.hour === "24" ? "0" : p.hour, 10);
+      const inTzUtc = Date.UTC(
+        parseInt(p.year, 10),
+        parseInt(p.month, 10) - 1,
+        parseInt(p.day, 10),
+        tzHour,
+        parseInt(p.minute, 10),
+        parseInt(p.second, 10)
+      );
+      const diff = inTzUtc - targetCivilMs;
+      guessMs -= diff;
+      if (diff === 0) break;
+    }
+    return new Date(guessMs);
+  }
+  return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+}
+function resolveHoroscopeInput(input) {
+  if (!input || typeof input !== "object") {
+    throw new Error("HoroscopeInput must be a valid non-null object.");
+  }
+  const { latitude, longitude } = input;
+  if (typeof latitude !== "number" || isNaN(latitude) || !isFinite(latitude) || latitude < -90 || latitude > 90) {
+    throw new InvalidCoordinateError(`Invalid latitude ${latitude}. Must be a finite number between -90.0 and 90.0.`);
+  }
+  if (typeof longitude !== "number" || isNaN(longitude) || !isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new InvalidCoordinateError(`Invalid longitude ${longitude}. Must be a finite number between -180.0 and 180.0.`);
+  }
+  let resolvedDate;
+  if (input.birthDate) {
+    if (!(input.birthDate instanceof Date) || isNaN(input.birthDate.getTime())) {
+      throw new InvalidDateError("Provided birthDate is not a valid Date instance.");
+    }
+    resolvedDate = new Date(input.birthDate.getTime());
+  } else if (input.date && input.time) {
+    resolvedDate = resolveCivilTimeToUtc(
+      input.date,
+      input.time,
+      input.timezoneOffset,
+      input.ianaTimezone
+    );
+  } else {
+    throw new InvalidDateError(
+      'Invalid input: Must provide either "birthDate" (Date) or civil "date" (YYYY-MM-DD) and "time" (HH:mm).'
+    );
+  }
+  const resolvedYear = resolvedDate.getUTCFullYear();
+  if (resolvedYear < 1800 || resolvedYear > 2100) {
+    throw new InvalidDateError(
+      `Resolved year ${resolvedYear} is outside supported historical boundary [1800, 2100].`
+    );
+  }
+  const jd_ut = resolvedDate.getTime() / 864e5 + 24405875e-1;
+  const ayanamshaSystem = input.ayanamshaSystem || "Lahiri";
+  const lahiriAyanamsha = drik_get_ayanamsa_ut(jd_ut);
+  let ayanamshaValue = lahiriAyanamsha;
+  if (ayanamshaSystem === "KP") {
+    ayanamshaValue = lahiriAyanamsha - (5 + 54 / 60) / 60;
+  } else if (ayanamshaSystem === "Raman") {
+    const T = (jd_ut - 2451545) / 36525;
+    ayanamshaValue = 21.01524 + 1.39811 * T;
+  }
+  const houseSystem = input.houseSystem || "Sripati";
+  const metadata = {
+    engineName: "Sanatan Astro Engine",
+    engineVersion: "1.1.0",
+    calculatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    resolvedUtcInstant: resolvedDate.toISOString(),
+    julianDayUT: jd_ut,
+    ayanamshaType: ayanamshaSystem,
+    ayanamshaValue,
+    houseSystemUsed: houseSystem,
+    coordinates: {
+      lat: latitude,
+      lng: longitude
+    }
+  };
+  return {
+    resolvedDate,
+    metadata,
+    houseSystem,
+    ayanamshaSystem
+  };
+}
+
+// src/facade/svgRenderers.ts
+function escapeXml(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+function renderNorthIndianSvg(model) {
+  let housesMarkup = "";
+  for (const h of model.houses) {
+    housesMarkup += `  <polygon points="${h.polygonPoints}" fill="none" stroke="#b45309" stroke-width="1.5" />
+`;
+    housesMarkup += `  <text x="${h.labelPosition.x}" y="${h.labelPosition.y}" fill="#92400e" font-size="11" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle" dominant-baseline="central">${h.signNumber}</text>
+`;
+    if (h.planets && h.planets.length > 0) {
+      const startX = h.planetArea.x + h.planetArea.width / 2;
+      const totalP = h.planets.length;
+      const lineHeight = Math.min(13, h.planetArea.height / Math.max(1, totalP));
+      const startY = h.planetArea.y + (h.planetArea.height - (totalP - 1) * lineHeight) / 2;
+      h.planets.forEach((p, idx) => {
+        const y = startY + idx * lineHeight;
+        const retroStr = p.isRetrograde ? "(R)" : "";
+        const combustStr = p.isCombust ? "*" : "";
+        const deg = Math.floor(p.degreeInSign);
+        const label = `${p.name.substring(0, 2)}${retroStr}${combustStr} ${deg}\xB0`;
+        housesMarkup += `  <text x="${startX}" y="${y}" fill="#1e293b" font-size="9.5" font-family="system-ui, sans-serif" font-weight="600" text-anchor="middle" dominant-baseline="central">${escapeXml(label)}</text>
+`;
+      });
+    }
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%" style="background-color: #fffdfa;">
+  <!-- Chart Border -->
+  <rect x="0" y="0" width="400" height="400" fill="#fffdfa" stroke="#b45309" stroke-width="2.5" />
+  <!-- House Polygons & Labels -->
+${housesMarkup}
+</svg>`;
+}
+function renderSouthIndianSvg(model) {
+  let boxesMarkup = "";
+  for (const b of model.signBoxes) {
+    const { x, y, width, height } = b.boxRect;
+    boxesMarkup += `  <rect x="${x}" y="${y}" width="${width}" height="${height}" fill="none" stroke="#b45309" stroke-width="1.5" />
+`;
+    const ascText = b.isAscendant ? " [ASC]" : "";
+    const signHeader = `${b.signName.substring(0, 3).toUpperCase()}${ascText}`;
+    const headerColor = b.isAscendant ? "#dc2626" : "#92400e";
+    boxesMarkup += `  <text x="${x + 6}" y="${y + 14}" fill="${headerColor}" font-size="10" font-family="system-ui, sans-serif" font-weight="bold">${escapeXml(signHeader)}</text>
+`;
+    if (b.isAscendant) {
+      boxesMarkup += `  <line x1="${x}" y1="${y}" x2="${x + 24}" y2="${y + 24}" stroke="#dc2626" stroke-width="1.5" />
+`;
+    }
+    if (b.planets && b.planets.length > 0) {
+      const startX = x + width / 2;
+      const totalP = b.planets.length;
+      const lineHeight = Math.min(13, (height - 24) / Math.max(1, totalP));
+      const startY = y + 26 + lineHeight / 2;
+      b.planets.forEach((p, idx) => {
+        const py = startY + idx * lineHeight;
+        const retroStr = p.isRetrograde ? "(R)" : "";
+        const combustStr = p.isCombust ? "*" : "";
+        const deg = Math.floor(p.degreeInSign);
+        const label = `${p.name.substring(0, 2)}${retroStr}${combustStr} ${deg}\xB0`;
+        boxesMarkup += `  <text x="${startX}" y="${py}" fill="#1e293b" font-size="9.5" font-family="system-ui, sans-serif" font-weight="600" text-anchor="middle" dominant-baseline="central">${escapeXml(label)}</text>
+`;
+      });
+    }
+  }
+  const centerMarkup = `  <rect x="100" y="100" width="200" height="200" fill="#fef3c7" fill-opacity="0.25" stroke="#b45309" stroke-width="1.5" />
+  <text x="200" y="195" fill="#b45309" font-size="14" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">SANATAN KUNDLI</text>
+  <text x="200" y="215" fill="#78350f" font-size="11" font-family="system-ui, sans-serif" text-anchor="middle">South Indian Chart</text>
+`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%" style="background-color: #fffdfa;">
+  <!-- Chart Border -->
+  <rect x="0" y="0" width="400" height="400" fill="#fffdfa" stroke="#b45309" stroke-width="2.5" />
+  <!-- Center Area -->
+${centerMarkup}
+  <!-- Outer Sign Boxes -->
+${boxesMarkup}
+</svg>`;
+}
+function renderEastIndianSvg(model) {
+  let boxesMarkup = "";
+  for (const b of model.signBoxes) {
+    boxesMarkup += `  <polygon points="${b.polygonPoints}" fill="none" stroke="#b45309" stroke-width="1.5" />
+`;
+    const ascText = b.isAscendant ? " [ASC]" : "";
+    const label = `${b.signName.substring(0, 3)}${ascText}`;
+    const headerColor = b.isAscendant ? "#dc2626" : "#92400e";
+    boxesMarkup += `  <text x="${b.labelPosition.x}" y="${b.labelPosition.y}" fill="${headerColor}" font-size="10" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">${escapeXml(label)}</text>
+`;
+    if (b.planets && b.planets.length > 0) {
+      b.planets.forEach((p, idx) => {
+        const py = b.labelPosition.y + 12 + idx * 11;
+        const retroStr = p.isRetrograde ? "(R)" : "";
+        const combustStr = p.isCombust ? "*" : "";
+        const deg = Math.floor(p.degreeInSign);
+        const pLabel = `${p.name.substring(0, 2)}${retroStr}${combustStr} ${deg}\xB0`;
+        boxesMarkup += `  <text x="${b.labelPosition.x}" y="${py}" fill="#1e293b" font-size="9" font-family="system-ui, sans-serif" font-weight="600" text-anchor="middle">${escapeXml(pLabel)}</text>
+`;
+      });
+    }
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%" style="background-color: #fffdfa;">
+  <!-- Chart Border -->
+  <rect x="0" y="0" width="400" height="400" fill="#fffdfa" stroke="#b45309" stroke-width="2.5" />
+  <!-- Sign Areas & Planets -->
+${boxesMarkup}
+</svg>`;
+}
+
+// src/remedies/remedyEngine.ts
+var GEMSTONE_CATALOG = {
+  Sun: {
+    name: "Ruby",
+    hindiName: "\u092E\u093E\u0923\u093F\u0915\u094D\u092F (\u092E\u093E\u0923\u093F\u0915)",
+    sanskritName: "Manikya",
+    weight: "5.25 - 6.5 Carats (6-7 Ratti)",
+    metal: "Gold or Copper",
+    finger: "Ring finger of right hand",
+    dayToWear: "Sunday",
+    auspiciousHora: "Surya Hora (at or just after sunrise)",
+    consecrationMantra: "\u0950 \u0939\u094D\u0930\u093E\u0902 \u0939\u094D\u0930\u0940\u0902 \u0939\u094D\u0930\u094C\u0902 \u0938\u0903 \u0938\u0942\u0930\u094D\u092F\u093E\u092F \u0928\u092E\u0903",
+    benefits: "Boosts physical constitution, executive authority, fatherly blessings, and professional distinction."
+  },
+  Moon: {
+    name: "Pearl",
+    hindiName: "\u092E\u094B\u0924\u0940",
+    sanskritName: "Mukta",
+    weight: "5.0 - 7.0 Carats (5.5-7.5 Ratti)",
+    metal: "Pure Silver",
+    finger: "Little finger of right hand",
+    dayToWear: "Monday",
+    auspiciousHora: "Chandra Hora (morning or moonrise)",
+    consecrationMantra: "\u0950 \u0936\u094D\u0930\u093E\u0902 \u0936\u094D\u0930\u0940\u0902 \u0936\u094D\u0930\u094C\u0902 \u0938\u0903 \u091A\u0928\u094D\u0926\u094D\u0930\u092E\u0938\u0947 \u0928\u092E\u0903",
+    benefits: "Calms fluctuating emotions, dissolves anxiety, restores peaceful sleep, and nurtures maternal harmony."
+  },
+  Mars: {
+    name: "Red Coral",
+    hindiName: "\u092E\u0942\u0902\u0917\u093E",
+    sanskritName: "Pravala",
+    weight: "6.0 - 8.0 Carats (6.5-9 Ratti)",
+    metal: "Copper, Gold, or Panchadhatu",
+    finger: "Ring finger of right hand",
+    dayToWear: "Tuesday",
+    auspiciousHora: "Mangal Hora",
+    consecrationMantra: "\u0950 \u0915\u094D\u0930\u093E\u0902 \u0915\u094D\u0930\u0940\u0902 \u0915\u094D\u0930\u094C\u0902 \u0938\u0903 \u092D\u094C\u092E\u093E\u092F \u0928\u092E\u0903",
+    benefits: "Increases courage, vitality, sports stamina, property acquisition, and overcomes lethargy."
+  },
+  Mercury: {
+    name: "Emerald",
+    hindiName: "\u092A\u0928\u094D\u0928\u093E",
+    sanskritName: "Marakata",
+    weight: "4.5 - 6.0 Carats (5-6.5 Ratti)",
+    metal: "Gold, Silver, or Bronze",
+    finger: "Little finger of right hand",
+    dayToWear: "Wednesday",
+    auspiciousHora: "Budha Hora",
+    consecrationMantra: "\u0950 \u092C\u094D\u0930\u093E\u0902 \u092C\u094D\u0930\u0940\u0902 \u092C\u094D\u0930\u094C\u0902 \u0938\u0903 \u092C\u0941\u0927\u093E\u092F \u0928\u092E\u0903",
+    benefits: "Sharpens analytical intellect, commerce acumen, articulate speech, and balances the nervous system."
+  },
+  Jupiter: {
+    name: "Yellow Sapphire",
+    hindiName: "\u092A\u0941\u0916\u0930\u093E\u091C",
+    sanskritName: "Pushparaga",
+    weight: "4.5 - 6.5 Carats (5-7 Ratti)",
+    metal: "Yellow Gold or Panchadhatu",
+    finger: "Index finger of right hand",
+    dayToWear: "Thursday",
+    auspiciousHora: "Guru Hora",
+    consecrationMantra: "\u0950 \u0917\u094D\u0930\u093E\u0902 \u0917\u094D\u0930\u0940\u0902 \u0917\u094D\u0930\u094C\u0902 \u0938\u0903 \u0917\u0941\u0930\u0935\u0947 \u0928\u092E\u0903",
+    benefits: "Expands spiritual wisdom, abundance, higher learning, good fortune, and progeny happiness."
+  },
+  Venus: {
+    name: "Diamond / White Zircon",
+    hindiName: "\u0939\u0940\u0930\u093E / \u091C\u0930\u0915\u0928",
+    sanskritName: "Vajra",
+    weight: "1.0 - 2.0 Carats (Diamond) / 5.0 - 7.0 Carats (Zircon)",
+    metal: "Platinum, White Gold, or Silver",
+    finger: "Middle or Little finger of right hand",
+    dayToWear: "Friday",
+    auspiciousHora: "Shukra Hora",
+    consecrationMantra: "\u0950 \u0926\u094D\u0930\u093E\u0902 \u0926\u094D\u0930\u0940\u0902 \u0926\u094D\u0930\u094C\u0902 \u0938\u0903 \u0936\u0941\u0915\u094D\u0930\u093E\u092F \u0928\u092E\u0903",
+    benefits: "Elevates creative refinement, aesthetic appreciation, matrimonial bliss, and worldly luxuries."
+  },
+  Saturn: {
+    name: "Blue Sapphire",
+    hindiName: "\u0928\u0940\u0932\u092E",
+    sanskritName: "Neelam",
+    weight: "4.5 - 6.0 Carats (5-6.5 Ratti)",
+    metal: "Panchadhatu, Iron, or White Gold",
+    finger: "Middle finger of right hand",
+    dayToWear: "Saturday",
+    auspiciousHora: "Shani Hora",
+    consecrationMantra: "\u0950 \u092A\u094D\u0930\u093E\u0902 \u092A\u094D\u0930\u0940\u0902 \u092A\u094D\u0930\u094C\u0902 \u0938\u0903 \u0936\u0928\u0948\u0936\u094D\u091A\u0930\u093E\u092F \u0928\u092E\u0903",
+    benefits: "Instills steadfast perseverance, focus, judicial acumen, karmic shielding, and long-term mastery."
+  }
+};
+var RUDRAKSHA_CATALOG = {
+  Sun: {
+    mukhi: 1,
+    mukhiName: "1 Mukhi (Ekamukhi) / 12 Mukhi",
+    deity: "Lord Shiva / Surya Deva",
+    beejaMantra: "\u0950 \u0939\u094D\u0930\u0940\u0902 \u0928\u092E\u0903 (Om Hreem Namah) / \u0950 \u0915\u094D\u0930\u094C\u0902 \u0915\u094D\u0937\u094C\u0902 \u0930\u094C\u0902 \u0928\u092E\u0903",
+    wearDay: "Sunday morning",
+    benefits: "Cures ocular & heart ailments, removes self-doubt, bestows supreme administrative authority."
+  },
+  Moon: {
+    mukhi: 2,
+    mukhiName: "2 Mukhi (Dvimukhi)",
+    deity: "Ardhanarishvara (Shiva-Shakti)",
+    beejaMantra: "\u0950 \u0950 \u0928\u092E\u0903 (Om Om Namah)",
+    wearDay: "Monday morning",
+    benefits: "Harmonizes marital relations, heals emotional trauma, stabilizes mind, balances bodily fluids."
+  },
+  Mars: {
+    mukhi: 3,
+    mukhiName: "3 Mukhi (Trimukhi)",
+    deity: "Lord Agni",
+    beejaMantra: "\u0950 \u0915\u094D\u0932\u0940\u0902 \u0928\u092E\u0903 (Om Kleem Namah)",
+    wearDay: "Tuesday morning",
+    benefits: "Purifies past karmic complexes, destroys chronic fatigue, elevates metabolism and courage."
+  },
+  Mercury: {
+    mukhi: 4,
+    mukhiName: "4 Mukhi (Chaturmukhi)",
+    deity: "Lord Brahma",
+    beejaMantra: "\u0950 \u0939\u094D\u0930\u0940\u0902 \u0928\u092E\u0903 (Om Hreem Namah)",
+    wearDay: "Wednesday morning",
+    benefits: "Enhances memory retention, academic excellence, oratory skills, and logical reasoning."
+  },
+  Jupiter: {
+    mukhi: 5,
+    mukhiName: "5 Mukhi (Panchamukhi)",
+    deity: "Lord Kalagni Rudra",
+    beejaMantra: "\u0950 \u0939\u094D\u0930\u0940\u0902 \u0928\u092E\u0903 (Om Hreem Namah)",
+    wearDay: "Thursday morning",
+    benefits: "Regulates blood pressure, imparts spiritual insight, fosters wisdom, peace, and longevity."
+  },
+  Venus: {
+    mukhi: 6,
+    mukhiName: "6 Mukhi (Shanmukhi)",
+    deity: "Lord Kartikeya",
+    beejaMantra: "\u0950 \u0939\u094D\u0930\u0940\u0902 \u0939\u0941\u0902 \u0928\u092E\u0903 (Om Hreem Hoom Namah)",
+    wearDay: "Friday morning",
+    benefits: "Bestows charismatic speech, artistic prowess, willpower, and cures hormonal imbalances."
+  },
+  Saturn: {
+    mukhi: 7,
+    mukhiName: "7 Mukhi (Saptamukhi) / 14 Mukhi",
+    deity: "Goddess Mahalakshmi / Lord Hanuman",
+    beejaMantra: "\u0950 \u0939\u0941\u0902 \u0928\u092E\u0903 (Om Hoom Namah)",
+    wearDay: "Saturday morning",
+    benefits: "Neutralizes Shani Sade Sati/Dhaiya, dispels chronic adversity, unblocks financial stagnation."
+  },
+  Rahu: {
+    mukhi: 8,
+    mukhiName: "8 Mukhi (Ashtamukhi)",
+    deity: "Lord Ganesha (Vighnaharta)",
+    beejaMantra: "\u0950 \u0939\u0941\u0902 \u0928\u092E\u0903 (Om Hoom Namah)",
+    wearDay: "Wednesday or Saturday morning",
+    benefits: "Removes insurmountable obstacles, protects from phantom fears, illusions, and Rahu afflictions."
+  },
+  Ketu: {
+    mukhi: 9,
+    mukhiName: "9 Mukhi (Navamukhi)",
+    deity: "Goddess Durga / Navadurga",
+    beejaMantra: "\u0950 \u0939\u094D\u0930\u0940\u0902 \u0939\u0941\u0902 \u0928\u092E\u0903 (Om Hreem Hoom Namah)",
+    wearDay: "Tuesday or Saturday morning",
+    benefits: "Confers profound spiritual liberation, fearlessness, removes depression, and heals Ketu afflictions."
+  }
+};
+var MANTRAS_CATALOG = {
+  Sun: {
+    beejMantra: "\u0950 \u0939\u094D\u0930\u093E\u0902 \u0939\u094D\u0930\u0940\u0902 \u0939\u094D\u0930\u094C\u0902 \u0938\u0903 \u0938\u0942\u0930\u094D\u092F\u093E\u092F \u0928\u092E\u0903",
+    vedicGayatri: "\u0950 \u0906\u0926\u093F\u0924\u094D\u092F\u093E\u092F \u0935\u093F\u0926\u094D\u092E\u0939\u0947 \u092E\u093E\u0930\u094D\u0924\u0923\u094D\u0921\u093E\u092F \u0927\u0940\u092E\u0939\u093F \u0924\u0928\u094D\u0928\u0903 \u0938\u0942\u0930\u094D\u092F\u0903 \u092A\u094D\u0930\u091A\u094B\u0926\u092F\u093E\u0924\u094D",
+    recommendedJapaCount: 7e3,
+    bestTime: "Sunrise facing East",
+    malaType: "Ruby or Sandalwood (Lal Chandan) Mala",
+    purpose: "Strengthens self-confidence, paternal relationship, and overall health."
+  },
+  Moon: {
+    beejMantra: "\u0950 \u0936\u094D\u0930\u093E\u0902 \u0936\u094D\u0930\u0940\u0902 \u0936\u094D\u0930\u094C\u0902 \u0938\u0903 \u091A\u0928\u094D\u0926\u094D\u0930\u092E\u0938\u0947 \u0928\u092E\u0903",
+    vedicGayatri: "\u0950 \u0915\u094D\u0937\u0940\u0930\u092A\u0941\u0924\u094D\u0930\u093E\u092F \u0935\u093F\u0926\u094D\u092E\u0939\u0947 \u0905\u092E\u0943\u0924\u0924\u0924\u094D\u0924\u094D\u0935\u093E\u092F \u0927\u0940\u092E\u0939\u093F \u0924\u0928\u094D\u0928\u094B \u091A\u0928\u094D\u0926\u094D\u0930\u0903 \u092A\u094D\u0930\u091A\u094B\u0926\u092F\u093E\u0924\u094D",
+    recommendedJapaCount: 11e3,
+    bestTime: "Evening or nighttime facing North-West",
+    malaType: "Pearl, Sphatik (Quartz), or Silver Mala",
+    purpose: "Stabilizes emotional fluctuations, sharpens intuition, and fosters inner peace."
+  },
+  Mars: {
+    beejMantra: "\u0950 \u0915\u094D\u0930\u093E\u0902 \u0915\u094D\u0930\u0940\u0902 \u0915\u094D\u0930\u094C\u0902 \u0938\u0903 \u092D\u094C\u092E\u093E\u092F \u0928\u092E\u0903",
+    vedicGayatri: "\u0950 \u0905\u0902\u0917\u093E\u0930\u0915\u093E\u092F \u0935\u093F\u0926\u094D\u092E\u0939\u0947 \u0936\u0915\u094D\u0924\u093F\u0939\u0938\u094D\u0924\u093E\u092F \u0927\u0940\u092E\u0939\u093F \u0924\u0928\u094D\u0928\u094B \u092D\u094C\u092E\u0903 \u092A\u094D\u0930\u091A\u094B\u0926\u092F\u093E\u0924\u094D",
+    recommendedJapaCount: 1e4,
+    bestTime: "Morning facing South",
+    malaType: "Red Coral or Sandalwood Mala",
+    purpose: "Calms anger, overcomes debts, protects against accidents, and mitigates Kuja dosha."
+  },
+  Mercury: {
+    beejMantra: "\u0950 \u092C\u094D\u0930\u093E\u0902 \u092C\u094D\u0930\u0940\u0902 \u092C\u094D\u0930\u094C\u0902 \u0938\u0903 \u092C\u0941\u0927\u093E\u092F \u0928\u092E\u0903",
+    vedicGayatri: "\u0950 \u0938\u094C\u092E\u094D\u092F\u0930\u0942\u092A\u093E\u092F \u0935\u093F\u0926\u094D\u092E\u0939\u0947 \u0935\u093E\u0923\u0947\u0936\u093E\u092F \u0927\u0940\u092E\u0939\u093F \u0924\u0928\u094D\u0928\u094B \u0938\u094C\u092E\u094D\u092F\u0903 \u092A\u094D\u0930\u091A\u094B\u0926\u092F\u093E\u0924\u094D",
+    recommendedJapaCount: 9e3,
+    bestTime: "Morning facing North",
+    malaType: "Tulsi or Green Agate Mala",
+    purpose: "Enhances cognitive sharpness, public speaking, business success, and academic performance."
+  },
+  Jupiter: {
+    beejMantra: "\u0950 \u0917\u094D\u0930\u093E\u0902 \u0917\u094D\u0930\u0940\u0902 \u0917\u094D\u0930\u094C\u0902 \u0938\u0903 \u0917\u0941\u0930\u0935\u0947 \u0928\u092E\u0903",
+    vedicGayatri: "\u0950 \u0935\u0943\u0937\u092D\u0927\u094D\u0935\u091C\u093E\u092F \u0935\u093F\u0926\u094D\u092E\u0939\u0947 \u0915\u0943\u0923\u0940\u0939\u0938\u094D\u0924\u093E\u092F \u0927\u0940\u092E\u0939\u093F \u0924\u0928\u094D\u0928\u094B \u0917\u0941\u0930\u0941\u0903 \u092A\u094D\u0930\u091A\u094B\u0926\u092F\u093E\u0924\u094D",
+    recommendedJapaCount: 19e3,
+    bestTime: "Early morning facing North-East",
+    malaType: "Turmeric (Haldi) or Rudraksha Mala",
+    purpose: "Brings divine grace, moral righteousness, wealth, and spiritual growth."
+  },
+  Venus: {
+    beejMantra: "\u0950 \u0926\u094D\u0930\u093E\u0902 \u0926\u094D\u0930\u0940\u0902 \u0926\u094D\u0930\u094C\u0902 \u0938\u0903 \u0936\u0941\u0915\u094D\u0930\u093E\u092F \u0928\u092E\u0903",
+    vedicGayatri: "\u0950 \u092D\u0943\u0917\u0941\u091C\u093E\u092F \u0935\u093F\u0926\u094D\u092E\u0939\u0947 \u0926\u093F\u0935\u094D\u092F\u0926\u0947\u0939\u093E\u092F \u0927\u0940\u092E\u0939\u093F \u0924\u0928\u094D\u0928\u0903 \u0936\u0941\u0915\u094D\u0930\u0903 \u092A\u094D\u0930\u091A\u094B\u0926\u092F\u093E\u0924\u094D",
+    recommendedJapaCount: 16e3,
+    bestTime: "Sunrise or twilight facing South-East",
+    malaType: "Sphatik (Quartz) or Kamalgatta Mala",
+    purpose: "Enhances artistic talents, romantic attraction, luxury, and physical charm."
+  },
+  Saturn: {
+    beejMantra: "\u0950 \u092A\u094D\u0930\u093E\u0902 \u092A\u094D\u0930\u0940\u0902 \u092A\u094D\u0930\u094C\u0902 \u0938\u0903 \u0936\u0928\u0948\u0936\u094D\u091A\u0930\u093E\u092F \u0928\u092E\u0903",
+    vedicGayatri: "\u0950 \u0928\u0940\u0932\u093E\u0902\u091C\u0928\u0938\u092E\u093E\u092D\u093E\u0938\u0902 \u0930\u0935\u093F\u092A\u0941\u0924\u094D\u0930\u0902 \u092F\u092E\u093E\u0917\u094D\u0930\u091C\u092E\u094D \u0964 \u091B\u093E\u092F\u093E\u092E\u093E\u0930\u094D\u0924\u0923\u094D\u0921\u0938\u092E\u094D\u092D\u0942\u0924\u0902 \u0924\u0902 \u0928\u092E\u093E\u092E\u093F \u0936\u0928\u0948\u0936\u094D\u091A\u0930\u092E\u094D \u0965",
+    recommendedJapaCount: 23e3,
+    bestTime: "Evening after sunset facing West",
+    malaType: "Rudraksha or Blue Sapphire / Amethyst Mala",
+    purpose: "Removes obstacles, relieves Sade Sati/Dhaiya burdens, and fosters deep endurance."
+  },
+  Rahu: {
+    beejMantra: "\u0950 \u092D\u094D\u0930\u093E\u0902 \u092D\u094D\u0930\u0940\u0902 \u092D\u094D\u0930\u094C\u0902 \u0938\u0903 \u0930\u093E\u0939\u0935\u0947 \u0928\u092E\u0903",
+    vedicGayatri: "\u0950 \u0928\u093E\u0917\u093E\u0927\u093F\u0930\u093E\u091C\u093E\u092F \u0935\u093F\u0926\u094D\u092E\u0939\u0947 \u092A\u0926\u094D\u092E\u0928\u0947\u0924\u094D\u0930\u093E\u092F \u0927\u0940\u092E\u0939\u093F \u0924\u0928\u094D\u0928\u094B \u0930\u093E\u0939\u0941\u0903 \u092A\u094D\u0930\u091A\u094B\u0926\u092F\u093E\u0924\u094D",
+    recommendedJapaCount: 18e3,
+    bestTime: "Nighttime facing South-West",
+    malaType: "Chandan or Rudraksha Mala",
+    purpose: "Shields from confusion, sudden loss, psychic distress, and Kaal Sarp dosha."
+  },
+  Ketu: {
+    beejMantra: "\u0950 \u0938\u094D\u0924\u094D\u0930\u093E\u0902 \u0938\u094D\u0924\u094D\u0930\u0940\u0902 \u0938\u094D\u0924\u094D\u0930\u094C\u0902 \u0938\u0903 \u0915\u0947\u0924\u0935\u0947 \u0928\u092E\u0903",
+    vedicGayatri: "\u0950 \u0905\u0936\u094D\u092E\u0927\u094D\u0935\u091C\u093E\u092F \u0935\u093F\u0926\u094D\u092E\u0939\u0947 \u0936\u0942\u0932\u0939\u0938\u094D\u0924\u093E\u092F \u0927\u0940\u092E\u0939\u093F \u0924\u0928\u094D\u0928\u094B \u0915\u0947\u0924\u0941\u0903 \u092A\u094D\u0930\u091A\u094B\u0926\u092F\u093E\u0924\u094D",
+    recommendedJapaCount: 17e3,
+    bestTime: "Early morning or night facing North-West",
+    malaType: "Rudraksha or Cat's Eye Mala",
+    purpose: "Deepens detachment, removes spiritual blockages, and awakens occult wisdom."
+  }
+};
+function generateVedicRemedies(params) {
+  const { chart, shadbala, doshas } = params;
+  const ascSignIdx = chart.ascendant.signIndex;
+  const houseLords = Array.from({ length: 12 }, (_, i) => {
+    const signIdx = (ascSignIdx + i) % 12;
+    return SIGN_LORDS[signIdx];
+  });
+  const lord1 = houseLords[0];
+  const lord2 = houseLords[1];
+  const lord5 = houseLords[4];
+  const lord6 = houseLords[5];
+  const lord7 = houseLords[6];
+  const lord8 = houseLords[7];
+  const lord9 = houseLords[8];
+  const lord12 = houseLords[11];
+  const dusthanaAndMarakaLords = /* @__PURE__ */ new Set([lord6, lord8, lord12, lord2, lord7]);
+  const prohibitedPlanets = Array.from(dusthanaAndMarakaLords);
+  const makeGem = (planet, type, typeHindi, house) => {
+    if (dusthanaAndMarakaLords.has(planet)) {
+      return void 0;
+    }
+    const cat = GEMSTONE_CATALOG[planet];
+    if (!cat) return void 0;
+    return {
+      type,
+      typeHindi,
+      name: cat.name,
+      hindiName: cat.hindiName,
+      sanskritName: cat.sanskritName,
+      rulingPlanet: planet,
+      rulingHouse: house,
+      recommendedWeight: cat.weight,
+      metal: cat.metal,
+      finger: cat.finger,
+      dayToWear: cat.dayToWear,
+      auspiciousHora: cat.auspiciousHora,
+      consecrationMantra: cat.consecrationMantra,
+      benefits: cat.benefits
+    };
+  };
+  const lifeStone = makeGem(lord1, "LifeStone", "\u091C\u0940\u0935\u0928 \u0930\u0924\u094D\u0928", 1);
+  const luckyStone = makeGem(lord9, "LuckyStone", "\u092D\u093E\u0917\u094D\u092F \u0930\u0924\u094D\u0928", 9);
+  const beneficStone = makeGem(lord5, "BeneficStone", "\u092A\u0941\u0923\u094D\u092F \u0930\u0924\u094D\u0928", 5);
+  const gemstoneResult = {
+    lifeStone,
+    luckyStone,
+    beneficStone,
+    prohibitedPlanets,
+    generalGuidance: "Gemstones amplify the planetary rays of auspicious functional benefics. Never wear gemstones of Dusthana (6th, 8th, 12th) or Maraka (2nd, 7th) lords even during their Mahadashas."
+  };
+  const sortedByStrength = [...shadbala.planets].sort((a, b) => a.strengthRatio - b.strengthRatio);
+  const weakestPlanetName = sortedByStrength[0]?.planetName || "Saturn";
+  const combustPlanets = chart.planets.filter((p) => p.isCombust).map((p) => p.name);
+  const primaryPlanet = combustPlanets.length > 0 ? combustPlanets[0] : weakestPlanetName;
+  const primaryCat = RUDRAKSHA_CATALOG[primaryPlanet] || RUDRAKSHA_CATALOG["Jupiter"];
+  const primaryRudraksha = {
+    mukhi: primaryCat.mukhi,
+    mukhiName: primaryCat.mukhiName,
+    rulingPlanet: primaryPlanet,
+    deity: primaryCat.deity,
+    beejaMantra: primaryCat.beejaMantra,
+    wearDay: primaryCat.wearDay,
+    reason: combustPlanets.includes(primaryPlanet) ? `${primaryPlanet} is combust with the Sun in the natal chart, needing energizing through Rudraksha.` : `${primaryPlanet} has the lowest Shadbala virupa ratio (${sortedByStrength[0]?.strengthRatio.toFixed(2)}), requiring planetary strengthening.`,
+    benefits: primaryCat.benefits
+  };
+  const secondaryList = [];
+  const secondaryPlanets = sortedByStrength.slice(1, 3).filter((p) => p.strengthRatio < 1 && p.planetName !== primaryPlanet).map((p) => p.planetName);
+  for (const sp of secondaryPlanets) {
+    const sCat = RUDRAKSHA_CATALOG[sp];
+    if (sCat) {
+      secondaryList.push({
+        mukhi: sCat.mukhi,
+        mukhiName: sCat.mukhiName,
+        rulingPlanet: sp,
+        deity: sCat.deity,
+        beejaMantra: sCat.beejaMantra,
+        wearDay: sCat.wearDay,
+        reason: `${sp} has below required Shadbala strength, benefiting from auxiliary Rudraksha support.`,
+        benefits: sCat.benefits
+      });
+    }
+  }
+  const planetsToMantra = /* @__PURE__ */ new Set();
+  if (primaryPlanet) planetsToMantra.add(primaryPlanet);
+  for (const cp of combustPlanets) planetsToMantra.add(cp);
+  for (const sp of secondaryPlanets) planetsToMantra.add(sp);
+  const hasManglik = doshas.some((d) => d.name.includes("Manglik") && d.hasDosha && !d.isCancelled);
+  if (hasManglik) planetsToMantra.add("Mars");
+  const hasKaalSarp = doshas.some((d) => d.name.includes("Kaal Sarp") && d.hasDosha && !d.isCancelled);
+  if (hasKaalSarp) {
+    planetsToMantra.add("Rahu");
+    planetsToMantra.add("Ketu");
+  }
+  if (planetsToMantra.size < 3) {
+    planetsToMantra.add(lord1);
+    planetsToMantra.add(lord9);
+  }
+  const mantras = Array.from(planetsToMantra).map((pName) => {
+    const m = MANTRAS_CATALOG[pName];
+    if (!m) return null;
+    return {
+      planetName: pName,
+      beejMantra: m.beejMantra,
+      vedicGayatri: m.vedicGayatri,
+      recommendedJapaCount: m.recommendedJapaCount,
+      bestTime: m.bestTime,
+      malaType: m.malaType,
+      purpose: m.purpose
+    };
+  }).filter((m) => m !== null);
+  const charities = [];
+  const saturnShad = shadbala.planets.find((p) => p.planetName === "Saturn");
+  if (saturnShad && saturnShad.strengthRatio < 1) {
+    charities.push({
+      remedyType: "Shani",
+      title: "Shani Shanti Daan (Mustard Oil Chhaya Daan)",
+      itemsToDonate: [
+        "Mustard oil in an iron or bronze bowl (gaze at reflection before donating)",
+        "Black sesame seeds (Kaale Til)",
+        "Black blanket or warm dark clothing",
+        "Whole black urad dal"
+      ],
+      auspiciousDay: "Saturday evening after sunset",
+      targetRecipient: "Needy, elderly, or Shani temple ascetic",
+      prescribedRitual: "Look into a bowl of mustard oil, see your reflection (Chhaya Daan), and donate along with a small iron nail or coin.",
+      reason: "Soothes Saturnian karmic pressure, removes delays, and protects against affliction."
+    });
+  }
+  if (hasManglik) {
+    charities.push({
+      remedyType: "Manglik",
+      title: "Mangal Dosha Parihara Daan",
+      itemsToDonate: [
+        "Red lentils (Masoor Dal)",
+        "Copper utensil or copper coins",
+        "Jaggery (Gud) and sweet wheat rotis",
+        "Red flowers and red cloth"
+      ],
+      auspiciousDay: "Tuesday afternoon",
+      targetRecipient: "Youth, celibate monks, or Hanuman temple",
+      prescribedRitual: "Offer sweet red rotis and jaggery to stray cows or monkeys on Tuesdays. Recite Hanuman Chalisa daily.",
+      reason: "Neutralizes excess aggressive energy of Mars and balances marriage compatibility."
+    });
+  }
+  if (hasKaalSarp) {
+    charities.push({
+      remedyType: "KaalSarp",
+      title: "Kaal Sarp Shanti & Rahu-Ketu Daan",
+      itemsToDonate: [
+        "Pair of small silver or copper snakes (Naag-Nagin)",
+        "Dry coconut with husk (flowed in running river)",
+        "Radish with leaves (Mooli)",
+        "Black and white checked blanket"
+      ],
+      auspiciousDay: "Nag Panchami or Saturday / Amavasya",
+      targetRecipient: "Flowing natural river water or Shiva Temple",
+      prescribedRitual: "Offer milk and jal abhishek to Shiva Lingam. Perform Rudrabhishek with Mahamrityunjaya Mantra.",
+      reason: "Pacifies axis turbulence of Rahu and Ketu, ensuring unobstructed career progress."
+    });
+  }
+  if (charities.length === 0) {
+    charities.push({
+      remedyType: "General",
+      title: `${weakestPlanetName} Strengthening Charity`,
+      itemsToDonate: [
+        weakestPlanetName === "Jupiter" ? "Yellow split peas (Chana Dal), turmeric, bananas" : weakestPlanetName === "Venus" ? "Kheer (rice pudding), white sugar, white silk" : weakestPlanetName === "Sun" ? "Wheat, jaggery, ruby-colored cloth" : weakestPlanetName === "Moon" ? "Rice, milk, silver coin, white flowers" : "Grains and seasonal fruits"
+      ],
+      auspiciousDay: weakestPlanetName === "Jupiter" ? "Thursday" : weakestPlanetName === "Venus" ? "Friday" : "Sunday",
+      targetRecipient: "Needy scholars, underprivileged children, or cow shelter (Gaushala)",
+      prescribedRitual: "Offer donations with humility and unconditional devotion during the morning hours.",
+      reason: `Boosts the functional potency of ${weakestPlanetName}, which showed the lowest Shadbala virupas.`
+    });
+  }
+  return {
+    gemstones: gemstoneResult,
+    rudraksha: {
+      primary: primaryRudraksha,
+      secondary: secondaryList,
+      generalGuidance: "Rudrakshas balance energetic electromagnetic fields and are completely safe for everyone without negative karmic side effects."
+    },
+    mantras,
+    charities
+  };
+}
+
+// src/facade/horoscopeFacade.ts
+function findBhavaChalitHouse(longitude, cusps) {
+  const normLon = (longitude % 360 + 360) % 360;
+  for (const c of cusps) {
+    const start = (c.startLongitude % 360 + 360) % 360;
+    const end = (c.endLongitude % 360 + 360) % 360;
+    if (start < end) {
+      if (normLon >= start && normLon < end) {
+        return c.houseNumber;
+      }
+    } else {
+      if (normLon >= start || normLon < end) {
+        return c.houseNumber;
+      }
+    }
+  }
+  let closestHouse = 1;
+  let minDiff = 360;
+  for (const c of cusps) {
+    const diff = Math.min(
+      Math.abs(normLon - c.midLongitude),
+      360 - Math.abs(normLon - c.midLongitude)
+    );
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestHouse = c.houseNumber;
+    }
+  }
+  return closestHouse;
+}
+function calculateCompleteHoroscope(input) {
+  const { resolvedDate, metadata, houseSystem } = resolveHoroscopeInput(input);
+  const chart = calculateNatalChart(
+    resolvedDate,
+    metadata.coordinates.lat,
+    metadata.coordinates.lng,
+    { houseSystem }
+  );
+  const extendedPlanets = chart.planets.map((p) => {
+    const rashiHouse = p.houseOccupied;
+    const bhavaChalitHouse = findBhavaChalitHouse(p.longitude, chart.cusps);
+    return {
+      ...p,
+      rashiHouse,
+      bhavaChalitHouse
+    };
+  });
+  const vargas = calculateShodashvarga(chart);
+  const shadbala = calculateShadbala(chart);
+  const ashtakavarga = calculateAshtakavarga(chart);
+  const allDashas = calculateAllDashas(chart);
+  const yogas = evaluateParashariYogas(chart);
+  const doshas = evaluateMaleficDoshas(chart);
+  const kp = calculateKPSubLord(chart.ascendant.longitude);
+  const jaimini = calculateJaiminiDetails(chart);
+  const tajik = calculateVarshphal(chart, 1);
+  const lalKitab = evaluateLalKitab(chart);
+  const remedies = generateVedicRemedies({
+    chart,
+    shadbala,
+    doshas,
+    yogas
+  });
+  const northChart = generateNorthIndianChart(chart);
+  const southChart = generateSouthIndianChart(chart);
+  const eastChart = generateEastIndianChart(chart);
+  const northIndianSvg = renderNorthIndianSvg(northChart);
+  const southIndianSvg = renderSouthIndianSvg(southChart);
+  const eastIndianSvg = renderEastIndianSvg(eastChart);
+  return {
+    metadata,
+    ascendant: {
+      sign: chart.ascendant.signName,
+      signIndex: chart.ascendant.signIndex,
+      degree: chart.ascendant.degreeInSign,
+      formatted: chart.ascendant.degreeFormatted,
+      nakshatra: chart.ascendant.nakshatraName,
+      pada: chart.ascendant.nakshatraPada
+    },
+    planets: extendedPlanets,
+    cusps: chart.cusps,
+    vargas,
+    shadbala,
+    ashtakavarga,
+    dashas: {
+      vimshottari: allDashas.vimshottari,
+      yogini: allDashas.yogini,
+      ashtottari: allDashas.ashtottari,
+      chara: allDashas.chara
+    },
+    predictive: {
+      yogas,
+      doshas,
+      kp,
+      jaimini,
+      tajik,
+      lalKitab
+    },
+    remedies,
+    charts: {
+      northIndianSvg,
+      southIndianSvg,
+      eastIndianSvg
+    }
+  };
+}
 export {
   ASHTAKAVARGA_CONTRIBUTORS,
   ASHTAKAVARGA_GRAHAS,
@@ -10668,6 +11459,8 @@ export {
   FESTVALS_PRESETS,
   GRAHA_PINDA_MULTIPLIERS,
   INDIAN_CITIES,
+  InvalidCoordinateError,
+  InvalidDateError,
   KAKSHYA_LORDS,
   KARANA_DETAILS,
   KP_LORDS_ORDER,
@@ -10719,6 +11512,7 @@ export {
   calculateAshtakavarga,
   calculateAshtottariDasha,
   calculateCharaDasha,
+  calculateCompleteHoroscope,
   calculateDagdaTithi,
   calculateDrishtiAndConjunctions,
   calculateFutureTransits,
@@ -10761,6 +11555,7 @@ export {
   evaluateParashariYogas,
   evaluateSadeSati,
   extendInitializationTimeout,
+  findBhavaChalitHouse,
   findBoundaryCrossing,
   findClosestCity,
   findCurrentVimshottari,
@@ -10769,6 +11564,7 @@ export {
   generateEastIndianChart,
   generateNorthIndianChart,
   generateSouthIndianChart,
+  generateVedicRemedies,
   generateVimshottariTimeline,
   getChoghadiyaPresentationData,
   getEngineProgressStage,
@@ -10792,6 +11588,10 @@ export {
   registerActiveExpectedKeys,
   registerEngineListener,
   registerPanchangCacheClearer,
+  renderEastIndianSvg,
+  renderNorthIndianSvg,
+  renderSouthIndianSvg,
+  resolveHoroscopeInput,
   retryEngineInitialization,
   runBulkValidation,
   swe_calc_ut,
