@@ -7,7 +7,6 @@
 
 import {
   drik_calc_ut,
-  drik_get_ayanamsa_ut,
   getAyanamshaForSystem,
   AyanamshaSystem,
   drik_houses,
