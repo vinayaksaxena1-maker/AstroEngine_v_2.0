@@ -8,6 +8,8 @@
 import {
   drik_calc_ut,
   drik_get_ayanamsa_ut,
+  getAyanamshaForSystem,
+  AyanamshaSystem,
   drik_houses,
   SE_SUN,
   SE_MOON,
@@ -61,6 +63,7 @@ export interface NatalChartData {
   longitude: number;
   jd_ut: number;
   ayanamsa: number;
+  ayanamshaSystem: AyanamshaSystem;
   ascendant: {
     longitude: number;
     signIndex: number;
@@ -141,19 +144,25 @@ export function getNakshatraInfo(longitude: number): { index: number; name: stri
 /**
  * Computes complete Natal Kundli data including Ascendant, Cusps, and Grahas
  */
+export interface NatalChartOptions {
+  houseSystem?: 'Sripati' | 'Placidus' | 'EqualHouse';
+  ayanamshaSystem?: AyanamshaSystem;
+}
+
 export function calculateNatalChart(
   birthDate: Date,
   latitude: number,
   longitude: number,
-  options: { houseSystem?: 'Sripati' | 'Placidus' | 'EqualHouse' } = {}
+  options: NatalChartOptions = {}
 ): NatalChartData {
   const houseSystem = options.houseSystem || 'Sripati';
+  const ayanamshaSystem = options.ayanamshaSystem || 'Lahiri';
   let sysChar = 'O'; // Sripati (Porphyry) default
   if (houseSystem === 'Placidus') sysChar = 'P';
   if (houseSystem === 'EqualHouse') sysChar = 'E';
 
   const jd_ut = (birthDate.getTime() / 86400000) + 2440587.5;
-  const ayanamsa = drik_get_ayanamsa_ut(jd_ut);
+  const ayanamsa = getAyanamshaForSystem(jd_ut, ayanamshaSystem);
 
   const houses = drik_houses(jd_ut, latitude, longitude, sysChar);
   const siderealAsc = (houses.ascmc[0] - ayanamsa + 360) % 360;
@@ -300,6 +309,7 @@ export function calculateNatalChart(
     longitude,
     jd_ut,
     ayanamsa,
+    ayanamshaSystem,
     ascendant: {
       longitude: siderealAsc,
       signIndex: ascSignIdx,
