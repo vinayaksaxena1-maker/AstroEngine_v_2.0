@@ -259,7 +259,7 @@ export function resolveHoroscopeInput(input: HoroscopeInput): ResolvedInputResul
 
   const metadata: EngineMetadata = {
     engineName: 'Sanatan Astro Engine',
-    engineVersion: '1.1.0',
+    engineVersion: '1.1.1',
     calculatedAt: new Date().toISOString(),
     resolvedUtcInstant: resolvedDate.toISOString(),
     julianDayUT: jd_ut,
