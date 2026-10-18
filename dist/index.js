@@ -10617,7 +10617,7 @@ function calculateVarshphal(natalChart, completedYears) {
   let currentEstDate = new Date(natalChart.birthDate.getTime() + completedYears * 365.2425 * 86400 * 1e3);
   for (let iter = 0; iter < 5; iter++) {
     const jd_ut = currentEstDate.getTime() / 864e5 + 24405875e-1;
-    const pos = drik_calc_ut(jd_ut, SE_SUN);
+    const pos = drik_calc_ut(jd_ut, SE_SUN, SEFLG_SIDEREAL);
     const sunLon = pos[0];
     const sunDailySpeed = pos[3] || 0.9856;
     let diff = (natalSunLon - sunLon + 540) % 360 - 180;

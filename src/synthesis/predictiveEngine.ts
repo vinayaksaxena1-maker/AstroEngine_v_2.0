@@ -16,7 +16,7 @@
  */
 
 import { NatalChartData, NatalPlanetDetail, SIGN_LORDS } from '../kundli/houseCusps';
-import { zodiacSigns, drik_calc_ut, SE_SUN } from '../core/sanatan_jpl_bridge';
+import { zodiacSigns, drik_calc_ut, SE_SUN, SEFLG_SIDEREAL } from '../core/sanatan_jpl_bridge';
 
 // =========================================================================
 // 1. CLASSICAL PARASHARI YOGAS ENGINE
@@ -856,7 +856,7 @@ export function calculateVarshphal(
   // Refine using root-finding on Sun sidereal longitude
   for (let iter = 0; iter < 5; iter++) {
     const jd_ut = (currentEstDate.getTime() / 86400000) + 2440587.5;
-    const pos = drik_calc_ut(jd_ut, SE_SUN);
+    const pos = drik_calc_ut(jd_ut, SE_SUN, SEFLG_SIDEREAL);
     const sunLon = pos[0];
     const sunDailySpeed = pos[3] || 0.9856;
     let diff = ((natalSunLon - sunLon + 540) % 360) - 180;
