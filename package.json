@@ -1,6 +1,6 @@
 {
   "name": "sanatan-astro-engine",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "High-precision Vedic Panchang, Astronomical and Hindu Festival Calculation Engine powered by Proprietary MIT/JPL Sanatan Engine",
   "type": "module",
   "main": "./dist/index.js",
