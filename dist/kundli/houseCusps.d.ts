@@ -4,6 +4,7 @@
  * Computes exact Sidereal Ascendant (Lagna), 12 Bhava Cusps (Sripati, Placidus, Equal),
  * Bhava Sandhis, and complete Natal Planetary Longitudes with Combustion & Retrogrades.
  */
+import { AyanamshaSystem } from '../core/sanatan_jpl_bridge';
 export interface BhavaCuspDetail {
     houseNumber: number;
     startLongitude: number;
@@ -40,6 +41,7 @@ export interface NatalChartData {
     longitude: number;
     jd_ut: number;
     ayanamsa: number;
+    ayanamshaSystem: AyanamshaSystem;
     ascendant: {
         longitude: number;
         signIndex: number;
@@ -75,7 +77,9 @@ export declare function getNakshatraInfo(longitude: number): {
 /**
  * Computes complete Natal Kundli data including Ascendant, Cusps, and Grahas
  */
-export declare function calculateNatalChart(birthDate: Date, latitude: number, longitude: number, options?: {
+export interface NatalChartOptions {
     houseSystem?: 'Sripati' | 'Placidus' | 'EqualHouse';
-}): NatalChartData;
+    ayanamshaSystem?: AyanamshaSystem;
+}
+export declare function calculateNatalChart(birthDate: Date, latitude: number, longitude: number, options?: NatalChartOptions): NatalChartData;
 //# sourceMappingURL=houseCusps.d.ts.map

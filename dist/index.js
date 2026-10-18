@@ -2608,6 +2608,21 @@ function drik_get_ayanamsa_ut(jd_ut, mode = SE_SIDM_LAHIRI) {
 }
 var swe_get_ayanamsa_ut = drik_get_ayanamsa_ut;
 var swe_get_ayanamsa = drik_get_ayanamsa_ut;
+function getAyanamshaForSystem(jd_ut, system = "Lahiri") {
+  const lahiri = drik_get_ayanamsa_ut(jd_ut);
+  switch (system) {
+    case "Lahiri":
+      return lahiri;
+    case "KP":
+      return lahiri - (5 + 54 / 60) / 60;
+    case "Raman": {
+      const T = (jd_ut - 2451545) / 36525;
+      return 21.01524 + 1.39811 * T;
+    }
+    default:
+      throw new Error(`Unsupported ayanamsha system: ${system}`);
+  }
+}
 function equatorToEclipticOfDate(raHours, decDeg, toblDeg) {
   const alpha = raHours * 15 * DEG2RAD2;
   const delta = decDeg * DEG2RAD2;
@@ -7881,11 +7896,12 @@ function getNakshatraInfo(longitude) {
 }
 function calculateNatalChart(birthDate, latitude, longitude, options = {}) {
   const houseSystem = options.houseSystem || "Sripati";
+  const ayanamshaSystem = options.ayanamshaSystem || "Lahiri";
   let sysChar = "O";
   if (houseSystem === "Placidus") sysChar = "P";
   if (houseSystem === "EqualHouse") sysChar = "E";
   const jd_ut = birthDate.getTime() / 864e5 + 24405875e-1;
-  const ayanamsa = drik_get_ayanamsa_ut(jd_ut);
+  const ayanamsa = getAyanamshaForSystem(jd_ut, ayanamshaSystem);
   const houses = drik_houses(jd_ut, latitude, longitude, sysChar);
   const siderealAsc = (houses.ascmc[0] - ayanamsa + 360) % 360;
   const siderealMC = (houses.ascmc[1] - ayanamsa + 360) % 360;
@@ -8010,6 +8026,7 @@ function calculateNatalChart(birthDate, latitude, longitude, options = {}) {
     longitude,
     jd_ut,
     ayanamsa,
+    ayanamshaSystem,
     ascendant: {
       longitude: siderealAsc,
       signIndex: ascSignIdx,
@@ -10670,7 +10687,36 @@ var InvalidDateError = class extends Error {
     this.name = "InvalidDateError";
   }
 };
-function resolveCivilTimeToUtc(dateStr, timeStr, timezoneOffset, ianaTimezone) {
+function validateCalendarDate(year, month, day) {
+  if (!Number.isInteger(year) || year < 1800 || year > 2100) {
+    throw new InvalidDateError(`Year ${year} is outside supported calendar range [1800, 2100].`);
+  }
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    throw new InvalidDateError(`Invalid calendar date: ${year}-${month}-${day}.`);
+  }
+  const leap = year % 4 === 0 && year % 100 !== 0 || year % 400 === 0;
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (!Number.isInteger(day) || day < 1 || day > days[month - 1]) {
+    throw new InvalidDateError(`Invalid calendar date: ${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}.`);
+  }
+}
+function getZonedParts(formatter, instantMs) {
+  const parts = {};
+  for (const part of formatter.formatToParts(new Date(instantMs))) parts[part.type] = part.value;
+  return parts;
+}
+function zonedWallTimeAsUtc(parts) {
+  const hour = Number(parts.hour) === 24 ? 0 : Number(parts.hour);
+  return Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    hour,
+    Number(parts.minute),
+    Number(parts.second)
+  );
+}
+function resolveCivilTimeToUtc(dateStr, timeStr, timezoneOffset, ianaTimezone, dstDisambiguation) {
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRegex.test(dateStr)) {
     throw new InvalidDateError(`Invalid date format "${dateStr}". Expected "YYYY-MM-DD".`);
@@ -10689,6 +10735,7 @@ function resolveCivilTimeToUtc(dateStr, timeStr, timezoneOffset, ianaTimezone) {
   if (day < 1 || day > 31) {
     throw new InvalidDateError(`Invalid day ${day}. Must be between 1 and 31.`);
   }
+  validateCalendarDate(year, month, day);
   const timeParts = timeStr.split(":");
   const hour = parseInt(timeParts[0], 10);
   const minute = parseInt(timeParts[1], 10);
@@ -10715,35 +10762,34 @@ function resolveCivilTimeToUtc(dateStr, timeStr, timezoneOffset, ianaTimezone) {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
-        hour12: false
+        hourCycle: "h23"
       });
     } catch {
       throw new InvalidDateError(`Invalid or unsupported IANA timezone "${ianaTimezone}".`);
     }
     const targetCivilMs = Date.UTC(year, month - 1, day, hour, minute, second);
-    let guessMs = targetCivilMs;
-    for (let i = 0; i < 3; i++) {
-      const parts = formatter.formatToParts(new Date(guessMs));
-      const p = {};
-      for (const part of parts) {
-        p[part.type] = part.value;
-      }
-      const tzHour = parseInt(p.hour === "24" ? "0" : p.hour, 10);
-      const inTzUtc = Date.UTC(
-        parseInt(p.year, 10),
-        parseInt(p.month, 10) - 1,
-        parseInt(p.day, 10),
-        tzHour,
-        parseInt(p.minute, 10),
-        parseInt(p.second, 10)
-      );
-      const diff = inTzUtc - targetCivilMs;
-      guessMs -= diff;
-      if (diff === 0) break;
+    const matchesRequestedCivilTime = (instantMs) => {
+      const p = getZonedParts(formatter, instantMs);
+      return Number(p.year) === year && Number(p.month) === month && Number(p.day) === day && Number(p.hour) === hour && Number(p.minute) === minute && Number(p.second) === second;
+    };
+    const offsets = /* @__PURE__ */ new Set();
+    for (let hours = -48; hours <= 48; hours += 6) {
+      const sampleMs = targetCivilMs + hours * 36e5;
+      offsets.add(zonedWallTimeAsUtc(getZonedParts(formatter, sampleMs)) - sampleMs);
     }
-    return new Date(guessMs);
+    const candidates = [...offsets].map((offsetMs) => targetCivilMs - offsetMs).filter(matchesRequestedCivilTime).sort((a, b) => a - b).filter((value, index, all) => index === 0 || value !== all[index - 1]);
+    if (candidates.length === 0) {
+      throw new InvalidDateError(`Local time "${dateStr} ${timeStr}" does not exist in timezone "${ianaTimezone}", likely because of a Daylight Saving Time spring-forward gap.`);
+    }
+    if (candidates.length > 1) {
+      if (!dstDisambiguation) {
+        throw new InvalidDateError(`Local time "${dateStr} ${timeStr}" in timezone "${ianaTimezone}" occurs twice during a clock change. Ask the user to choose the first or second occurrence and pass dstDisambiguation: "earlier" or "later".`);
+      }
+      return new Date(dstDisambiguation === "earlier" ? candidates[0] : candidates[candidates.length - 1]);
+    }
+    return new Date(candidates[0]);
   }
-  return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  throw new InvalidDateError("Civil date and time requires an explicit timezone.");
 }
 function resolveHoroscopeInput(input) {
   if (!input || typeof input !== "object") {
@@ -10763,11 +10809,21 @@ function resolveHoroscopeInput(input) {
     }
     resolvedDate = new Date(input.birthDate.getTime());
   } else if (input.date && input.time) {
+    if (input.timezoneOffset === void 0 && !input.ianaTimezone) {
+      throw new InvalidDateError('Civil date and time requires an explicit timezone. Pass timezoneOffset (0 for UTC) or an IANA timezone such as "Asia/Kolkata".');
+    }
+    if (input.timezoneOffset !== void 0 && input.ianaTimezone) {
+      throw new InvalidDateError("Pass either timezoneOffset or ianaTimezone, not both.");
+    }
+    if (input.dstDisambiguation !== void 0 && !["earlier", "later"].includes(input.dstDisambiguation)) {
+      throw new InvalidDateError('dstDisambiguation must be "earlier" or "later".');
+    }
     resolvedDate = resolveCivilTimeToUtc(
       input.date,
       input.time,
       input.timezoneOffset,
-      input.ianaTimezone
+      input.ianaTimezone,
+      input.dstDisambiguation
     );
   } else {
     throw new InvalidDateError(
@@ -10782,18 +10838,17 @@ function resolveHoroscopeInput(input) {
   }
   const jd_ut = resolvedDate.getTime() / 864e5 + 24405875e-1;
   const ayanamshaSystem = input.ayanamshaSystem || "Lahiri";
-  const lahiriAyanamsha = drik_get_ayanamsa_ut(jd_ut);
-  let ayanamshaValue = lahiriAyanamsha;
-  if (ayanamshaSystem === "KP") {
-    ayanamshaValue = lahiriAyanamsha - (5 + 54 / 60) / 60;
-  } else if (ayanamshaSystem === "Raman") {
-    const T = (jd_ut - 2451545) / 36525;
-    ayanamshaValue = 21.01524 + 1.39811 * T;
+  if (!["Lahiri", "KP", "Raman"].includes(ayanamshaSystem)) {
+    throw new InvalidDateError(`Unsupported ayanamsha system "${ayanamshaSystem}".`);
   }
+  const ayanamshaValue = getAyanamshaForSystem(jd_ut, ayanamshaSystem);
   const houseSystem = input.houseSystem || "Sripati";
+  if (!["Sripati", "Placidus", "EqualHouse"].includes(houseSystem)) {
+    throw new InvalidDateError(`Unsupported house system "${houseSystem}".`);
+  }
   const metadata = {
     engineName: "Sanatan Astro Engine",
-    engineVersion: "1.1.0",
+    engineVersion: "1.1.1",
     calculatedAt: (/* @__PURE__ */ new Date()).toISOString(),
     resolvedUtcInstant: resolvedDate.toISOString(),
     julianDayUT: jd_ut,
@@ -11372,12 +11427,12 @@ function findBhavaChalitHouse(longitude, cusps) {
   return closestHouse;
 }
 function calculateCompleteHoroscope(input) {
-  const { resolvedDate, metadata, houseSystem } = resolveHoroscopeInput(input);
+  const { resolvedDate, metadata, houseSystem, ayanamshaSystem } = resolveHoroscopeInput(input);
   const chart = calculateNatalChart(
     resolvedDate,
     metadata.coordinates.lat,
     metadata.coordinates.lng,
-    { houseSystem }
+    { houseSystem, ayanamshaSystem }
   );
   const extendedPlanets = chart.planets.map((p) => {
     const rashiHouse = p.houseOccupied;
@@ -11566,6 +11621,7 @@ export {
   generateSouthIndianChart,
   generateVedicRemedies,
   generateVimshottariTimeline,
+  getAyanamshaForSystem,
   getChoghadiyaPresentationData,
   getEngineProgressStage,
   getFestivalsForDay,

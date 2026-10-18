@@ -50,6 +50,9 @@ export declare function jdToAstroTime(jd_ut: number): Astronomy.AstroTime;
 export declare function drik_get_ayanamsa_ut(jd_ut: number, mode?: number): number;
 export declare const swe_get_ayanamsa_ut: typeof drik_get_ayanamsa_ut;
 export declare const swe_get_ayanamsa: typeof drik_get_ayanamsa_ut;
+export type AyanamshaSystem = 'Lahiri' | 'KP' | 'Raman';
+/** Returns the ayanamsha offset used by every natal-chart calculation path. */
+export declare function getAyanamshaForSystem(jd_ut: number, system?: AyanamshaSystem): number;
 /**
  * High-Precision Drop-in Replacement for Swiss Ephemeris swe_calc_ut
  *

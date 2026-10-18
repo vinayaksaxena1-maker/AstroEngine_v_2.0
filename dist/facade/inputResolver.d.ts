@@ -4,6 +4,7 @@
  * Implements bulletproof input validation guardrails and dual-format time resolution
  * (unambiguous UTC instant OR civil date/time + timezoneOffset/ianaTimezone).
  */
+import { AyanamshaSystem } from '../core/sanatan_jpl_bridge';
 export declare class InvalidCoordinateError extends Error {
     constructor(message: string);
 }
@@ -16,6 +17,7 @@ export interface HoroscopeInput {
     time?: string;
     timezoneOffset?: number;
     ianaTimezone?: string;
+    dstDisambiguation?: 'earlier' | 'later';
     latitude: number;
     longitude: number;
     altitudeMeters?: number;
@@ -24,11 +26,11 @@ export interface HoroscopeInput {
 }
 export interface EngineMetadata {
     engineName: 'Sanatan Astro Engine';
-    engineVersion: '1.1.0';
+    engineVersion: '1.1.1';
     calculatedAt: string;
     resolvedUtcInstant: string;
     julianDayUT: number;
-    ayanamshaType: 'Lahiri' | 'KP' | 'Raman';
+    ayanamshaType: AyanamshaSystem;
     ayanamshaValue: number;
     houseSystemUsed: 'Sripati' | 'Placidus' | 'EqualHouse';
     coordinates: {
@@ -40,7 +42,7 @@ export interface ResolvedInputResult {
     resolvedDate: Date;
     metadata: EngineMetadata;
     houseSystem: 'Sripati' | 'Placidus' | 'EqualHouse';
-    ayanamshaSystem: 'Lahiri' | 'KP' | 'Raman';
+    ayanamshaSystem: AyanamshaSystem;
 }
 /**
  * Validates HoroscopeInput and resolves exact UTC date, Julian Day, and calculation metadata.
