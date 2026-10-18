@@ -148,3 +148,26 @@ export {
 export {
   runBulkValidation
 } from './validateEngine';
+
+// 12. Kundli Core & Multi-Style Presentation Charts
+export * from './kundli/houseCusps';
+export * from './kundli/charts/northIndianChart';
+export * from './kundli/charts/southIndianChart';
+export * from './kundli/charts/eastIndianChart';
+export * from './kundli/drishtiEngine';
+
+// 13. Shodashvarga (16 Divisional Charts) Engine
+export * from './vargas/shodashvarga';
+
+// 14. Shadbala & Planetary Avasthas Engine
+export * from './shadbala/shadbalaEngine';
+
+// 15. Ashtakavarga Engine
+export * from './ashtakavarga/ashtakavargaEngine';
+
+// 16. Dasha Systems Engine (Vimshottari, Yogini, Ashtottari, Chara)
+export * from './dasha/dashaEngine';
+
+// 17. Predictive Synthesis & Specialized Systems (KP, Jaimini, Tajik, Lal Kitab, Panch Pakshi)
+export * from './synthesis/predictiveEngine';
+

@@ -7776,15 +7776,2912 @@ async function runBulkValidation() {
   console.log(`Status: ${isSuiteSuccess ? "PASS \u2705" : "FAIL \u274C"}`);
   console.log("==================================================");
 }
+
+// src/kundli/houseCusps.ts
+var NAKSHATRA_NAMES = [
+  "Ashwini",
+  "Bharani",
+  "Krittika",
+  "Rohini",
+  "Mrigashira",
+  "Ardra",
+  "Punarvasu",
+  "Pushya",
+  "Ashlesha",
+  "Magha",
+  "Purva Phalguni",
+  "Uttara Phalguni",
+  "Hasta",
+  "Chitra",
+  "Swati",
+  "Vishakha",
+  "Anuradha",
+  "Jyeshtha",
+  "Mula",
+  "Purva Ashadha",
+  "Uttara Ashadha",
+  "Shravana",
+  "Dhanishta",
+  "Shatabhisha",
+  "Purva Bhadrapada",
+  "Uttara Bhadrapada",
+  "Revati"
+];
+var NAKSHATRA_LORDS = [
+  "Ketu",
+  "Venus",
+  "Sun",
+  "Moon",
+  "Mars",
+  "Rahu",
+  "Jupiter",
+  "Saturn",
+  "Mercury",
+  "Ketu",
+  "Venus",
+  "Sun",
+  "Moon",
+  "Mars",
+  "Rahu",
+  "Jupiter",
+  "Saturn",
+  "Mercury",
+  "Ketu",
+  "Venus",
+  "Sun",
+  "Moon",
+  "Mars",
+  "Rahu",
+  "Jupiter",
+  "Saturn",
+  "Mercury"
+];
+var SIGN_LORDS = [
+  "Mars",
+  "Venus",
+  "Mercury",
+  "Moon",
+  "Sun",
+  "Mercury",
+  "Venus",
+  "Mars",
+  "Jupiter",
+  "Saturn",
+  "Saturn",
+  "Jupiter"
+];
+var COMBUSTION_ORBS = {
+  Moon: 12,
+  Mars: 17,
+  Mercury: 14,
+  Jupiter: 11,
+  Venus: 10,
+  Saturn: 15
+};
+function formatDegrees(deg) {
+  const norm = (deg % 360 + 360) % 360;
+  const d = Math.floor(norm);
+  const mFloat = (norm - d) * 60;
+  const m = Math.floor(mFloat);
+  const s = Math.floor((mFloat - m) * 60);
+  return `${d.toString().padStart(2, "0")}\xB0${m.toString().padStart(2, "0")}'${s.toString().padStart(2, "0")}"`;
+}
+function getNakshatraInfo(longitude) {
+  const norm = (longitude % 360 + 360) % 360;
+  const naksSpan = 13.333333333333334;
+  const index = Math.floor(norm / naksSpan) % 27;
+  const rem = norm % naksSpan;
+  const pada = Math.floor(rem / 3.3333333333333335) + 1;
+  return {
+    index,
+    name: NAKSHATRA_NAMES[index],
+    pada: Math.min(4, Math.max(1, pada)),
+    lord: NAKSHATRA_LORDS[index]
+  };
+}
+function calculateNatalChart(birthDate, latitude, longitude, options = {}) {
+  const houseSystem = options.houseSystem || "Sripati";
+  let sysChar = "O";
+  if (houseSystem === "Placidus") sysChar = "P";
+  if (houseSystem === "EqualHouse") sysChar = "E";
+  const jd_ut = birthDate.getTime() / 864e5 + 24405875e-1;
+  const ayanamsa = drik_get_ayanamsa_ut(jd_ut);
+  const houses = drik_houses(jd_ut, latitude, longitude, sysChar);
+  const siderealAsc = (houses.ascmc[0] - ayanamsa + 360) % 360;
+  const siderealMC = (houses.ascmc[1] - ayanamsa + 360) % 360;
+  const ascSignIdx = Math.floor(siderealAsc / 30);
+  const ascDegInSign = siderealAsc % 30;
+  const ascNaks = getNakshatraInfo(siderealAsc);
+  const rawCusps = [];
+  for (let i = 1; i <= 12; i++) {
+    rawCusps.push((houses.cusps[i] - ayanamsa + 360) % 360);
+  }
+  const cuspDetails = [];
+  for (let i = 0; i < 12; i++) {
+    const mid = rawCusps[i];
+    const prevMid = rawCusps[(i + 11) % 12];
+    const nextMid = rawCusps[(i + 1) % 12];
+    let start = 0;
+    if (mid >= prevMid) {
+      start = (prevMid + mid) / 2;
+    } else {
+      start = (prevMid + mid + 360) / 2 % 360;
+    }
+    let end = 0;
+    if (nextMid >= mid) {
+      end = (mid + nextMid) / 2;
+    } else {
+      end = (mid + nextMid + 360) / 2 % 360;
+    }
+    const signIdx = Math.floor(mid / 30);
+    cuspDetails.push({
+      houseNumber: i + 1,
+      startLongitude: start,
+      midLongitude: mid,
+      endLongitude: end,
+      signIndex: signIdx,
+      signName: zodiacSigns[signIdx].eng,
+      signHindi: zodiacSigns[signIdx].hin,
+      signLord: SIGN_LORDS[signIdx]
+    });
+  }
+  const bodies = [
+    { id: SE_SUN, name: "Sun", hindiName: "\u0938\u0942\u0930\u094D\u092F" },
+    { id: SE_MOON, name: "Moon", hindiName: "\u091A\u0928\u094D\u0926\u094D\u0930" },
+    { id: SE_MARS, name: "Mars", hindiName: "\u092E\u0902\u0917\u0932" },
+    { id: SE_MERCURY, name: "Mercury", hindiName: "\u092C\u0941\u0927" },
+    { id: SE_JUPITER, name: "Jupiter", hindiName: "\u0917\u0941\u0930\u0941" },
+    { id: SE_VENUS, name: "Venus", hindiName: "\u0936\u0941\u0915\u094D\u0930" },
+    { id: SE_SATURN, name: "Saturn", hindiName: "\u0936\u0928\u093F" },
+    { id: SE_MEAN_NODE, name: "Rahu", hindiName: "\u0930\u093E\u0939\u0941" }
+  ];
+  const planets = [];
+  let sunLon = 0;
+  for (const b of bodies) {
+    const calc = drik_calc_ut(jd_ut, b.id);
+    const sidLon = (calc[0] - ayanamsa + 360) % 360;
+    const speed = calc[3];
+    const signIdx = Math.floor(sidLon / 30);
+    const degInSign = sidLon % 30;
+    const naks = getNakshatraInfo(sidLon);
+    if (b.id === SE_SUN) {
+      sunLon = sidLon;
+    }
+    const houseFromLagna = (signIdx - ascSignIdx + 12) % 12 + 1;
+    planets.push({
+      id: b.id,
+      name: b.name,
+      hindiName: b.hindiName,
+      longitude: sidLon,
+      latitude: calc[1],
+      speed,
+      isRetrograde: speed < 0,
+      isCombust: false,
+      // Calculated after Sun is known
+      signIndex: signIdx,
+      signName: zodiacSigns[signIdx].eng,
+      signHindi: zodiacSigns[signIdx].hin,
+      degreeInSign: degInSign,
+      degreeFormatted: formatDegrees(degInSign),
+      nakshatraIndex: naks.index,
+      nakshatraName: naks.name,
+      nakshatraPada: naks.pada,
+      nakshatraLord: naks.lord,
+      houseOccupied: houseFromLagna
+    });
+  }
+  const rahu = planets.find((p) => p.name === "Rahu");
+  const ketuLon = (rahu.longitude + 180) % 360;
+  const ketuSignIdx = Math.floor(ketuLon / 30);
+  const ketuDegInSign = ketuLon % 30;
+  const ketuNaks = getNakshatraInfo(ketuLon);
+  const ketuHouse = (ketuSignIdx - ascSignIdx + 12) % 12 + 1;
+  planets.push({
+    id: SE_KETU,
+    name: "Ketu",
+    hindiName: "\u0915\u0947\u0924\u0941",
+    longitude: ketuLon,
+    latitude: 0,
+    speed: rahu.speed,
+    isRetrograde: true,
+    isCombust: false,
+    signIndex: ketuSignIdx,
+    signName: zodiacSigns[ketuSignIdx].eng,
+    signHindi: zodiacSigns[ketuSignIdx].hin,
+    degreeInSign: ketuDegInSign,
+    degreeFormatted: formatDegrees(ketuDegInSign),
+    nakshatraIndex: ketuNaks.index,
+    nakshatraName: ketuNaks.name,
+    nakshatraPada: ketuNaks.pada,
+    nakshatraLord: ketuNaks.lord,
+    houseOccupied: ketuHouse
+  });
+  for (const p of planets) {
+    if (p.name !== "Sun" && p.name !== "Rahu" && p.name !== "Ketu") {
+      const orb = COMBUSTION_ORBS[p.name] || 12;
+      let diff = Math.abs(p.longitude - sunLon);
+      if (diff > 180) diff = 360 - diff;
+      p.isCombust = diff <= orb;
+    }
+  }
+  return {
+    birthDate,
+    latitude,
+    longitude,
+    jd_ut,
+    ayanamsa,
+    ascendant: {
+      longitude: siderealAsc,
+      signIndex: ascSignIdx,
+      signName: zodiacSigns[ascSignIdx].eng,
+      signHindi: zodiacSigns[ascSignIdx].hin,
+      degreeInSign: ascDegInSign,
+      degreeFormatted: formatDegrees(ascDegInSign),
+      nakshatraIndex: ascNaks.index,
+      nakshatraName: ascNaks.name,
+      nakshatraPada: ascNaks.pada,
+      nakshatraLord: ascNaks.lord,
+      signLord: SIGN_LORDS[ascSignIdx]
+    },
+    midheaven: {
+      longitude: siderealMC,
+      signIndex: Math.floor(siderealMC / 30),
+      signName: zodiacSigns[Math.floor(siderealMC / 30)].eng
+    },
+    houseSystem,
+    cusps: cuspDetails,
+    planets
+  };
+}
+
+// src/kundli/charts/northIndianChart.ts
+var NORTH_INDIAN_GEOMETRY = [
+  // House 1 (Top Center Diamond)
+  {
+    points: "200,0 300,100 200,200 100,100",
+    label: { x: 200, y: 35 },
+    planetArea: { x: 130, y: 70, width: 140, height: 90 }
+  },
+  // House 2 (Top Left Triangle)
+  {
+    points: "0,0 200,0 100,100",
+    label: { x: 110, y: 25 },
+    planetArea: { x: 20, y: 20, width: 90, height: 60 }
+  },
+  // House 3 (Far Left Top Triangle)
+  {
+    points: "0,0 100,100 0,200",
+    label: { x: 25, y: 110 },
+    planetArea: { x: 10, y: 50, width: 70, height: 100 }
+  },
+  // House 4 (Left Center Diamond)
+  {
+    points: "0,200 100,100 200,200 100,300",
+    label: { x: 35, y: 200 },
+    planetArea: { x: 70, y: 130, width: 90, height: 140 }
+  },
+  // House 5 (Far Left Bottom Triangle)
+  {
+    points: "0,200 100,300 0,400",
+    label: { x: 25, y: 290 },
+    planetArea: { x: 10, y: 250, width: 70, height: 100 }
+  },
+  // House 6 (Bottom Left Triangle)
+  {
+    points: "0,400 100,300 200,400",
+    label: { x: 110, y: 375 },
+    planetArea: { x: 20, y: 320, width: 90, height: 60 }
+  },
+  // House 7 (Bottom Center Diamond)
+  {
+    points: "200,200 300,300 200,400 100,300",
+    label: { x: 200, y: 365 },
+    planetArea: { x: 130, y: 240, width: 140, height: 90 }
+  },
+  // House 8 (Bottom Right Triangle)
+  {
+    points: "200,400 300,300 400,400",
+    label: { x: 290, y: 375 },
+    planetArea: { x: 290, y: 320, width: 90, height: 60 }
+  },
+  // House 9 (Far Right Bottom Triangle)
+  {
+    points: "300,300 400,200 400,400",
+    label: { x: 375, y: 290 },
+    planetArea: { x: 320, y: 250, width: 70, height: 100 }
+  },
+  // House 10 (Right Center Diamond)
+  {
+    points: "200,200 300,100 400,200 300,300",
+    label: { x: 365, y: 200 },
+    planetArea: { x: 240, y: 130, width: 90, height: 140 }
+  },
+  // House 11 (Far Right Top Triangle)
+  {
+    points: "400,0 400,200 300,100",
+    label: { x: 375, y: 110 },
+    planetArea: { x: 320, y: 50, width: 70, height: 100 }
+  },
+  // House 12 (Top Right Triangle)
+  {
+    points: "200,0 400,0 300,100",
+    label: { x: 290, y: 25 },
+    planetArea: { x: 290, y: 20, width: 90, height: 60 }
+  }
+];
+function generateNorthIndianChart(natalData) {
+  const ascSignIdx = natalData.ascendant.signIndex;
+  const houses = [];
+  for (let h = 1; h <= 12; h++) {
+    const signIdx = (ascSignIdx + (h - 1)) % 12;
+    const signNumber = signIdx + 1;
+    const signObj = zodiacSigns[signIdx];
+    const geo = NORTH_INDIAN_GEOMETRY[h - 1];
+    const housePlanets = natalData.planets.filter((p) => p.houseOccupied === h).map((p) => ({
+      name: p.name,
+      hindiName: p.hindiName,
+      degreeInSign: p.degreeInSign,
+      degreeFormatted: p.degreeFormatted,
+      isRetrograde: p.isRetrograde,
+      isCombust: p.isCombust
+    }));
+    houses.push({
+      houseNumber: h,
+      signNumber,
+      signName: signObj.eng,
+      signHindi: signObj.hin,
+      signLord: natalData.cusps[h - 1]?.signLord || "",
+      planets: housePlanets,
+      polygonPoints: geo.points,
+      labelPosition: geo.label,
+      planetArea: geo.planetArea
+    });
+  }
+  return {
+    chartType: "NorthIndian",
+    viewBox: "0 0 400 400",
+    ascendantSignNumber: ascSignIdx + 1,
+    houses
+  };
+}
+
+// src/kundli/charts/southIndianChart.ts
+var SOUTH_INDIAN_FIXED_POSITIONS = {
+  12: { x: 0, y: 0 },
+  // Pisces (Row 0, Col 0)
+  1: { x: 100, y: 0 },
+  // Aries (Row 0, Col 1)
+  2: { x: 200, y: 0 },
+  // Taurus (Row 0, Col 2)
+  3: { x: 300, y: 0 },
+  // Gemini (Row 0, Col 3)
+  4: { x: 300, y: 100 },
+  // Cancer (Row 1, Col 3)
+  5: { x: 300, y: 200 },
+  // Leo (Row 2, Col 3)
+  6: { x: 300, y: 300 },
+  // Virgo (Row 3, Col 3)
+  7: { x: 200, y: 300 },
+  // Libra (Row 3, Col 2)
+  8: { x: 100, y: 300 },
+  // Scorpio (Row 3, Col 1)
+  9: { x: 0, y: 300 },
+  // Sagittarius (Row 3, Col 0)
+  10: { x: 0, y: 200 },
+  // Capricorn (Row 2, Col 0)
+  11: { x: 0, y: 100 }
+  // Aquarius (Row 1, Col 0)
+};
+function generateSouthIndianChart(natalData) {
+  const ascSignIdx = natalData.ascendant.signIndex;
+  const ascSignNumber = ascSignIdx + 1;
+  const signBoxes = [];
+  for (let s = 1; s <= 12; s++) {
+    const signIdx = s - 1;
+    const signObj = zodiacSigns[signIdx];
+    const pos = SOUTH_INDIAN_FIXED_POSITIONS[s];
+    const houseNumber = (signIdx - ascSignIdx + 12) % 12 + 1;
+    const signPlanets = natalData.planets.filter((p) => p.signIndex === signIdx).map((p) => ({
+      name: p.name,
+      hindiName: p.hindiName,
+      degreeInSign: p.degreeInSign,
+      degreeFormatted: p.degreeFormatted,
+      isRetrograde: p.isRetrograde,
+      isCombust: p.isCombust
+    }));
+    signBoxes.push({
+      signNumber: s,
+      signName: signObj.eng,
+      signHindi: signObj.hin,
+      isAscendant: s === ascSignNumber,
+      houseNumber,
+      planets: signPlanets,
+      boxRect: { x: pos.x, y: pos.y, width: 100, height: 100 },
+      labelPosition: { x: pos.x + 8, y: pos.y + 18 }
+    });
+  }
+  return {
+    chartType: "SouthIndian",
+    viewBox: "0 0 400 400",
+    ascendantSignNumber: ascSignNumber,
+    signBoxes
+  };
+}
+
+// src/kundli/charts/eastIndianChart.ts
+var EAST_INDIAN_GEOMETRY = {
+  1: { points: "100,0 200,100 300,0", label: { x: 200, y: 35 } },
+  // Aries (Top)
+  2: { points: "0,0 100,0 200,100 100,200 0,100", label: { x: 80, y: 50 } },
+  // Taurus (Top-Left)
+  3: { points: "0,100 100,200 0,300", label: { x: 30, y: 200 } },
+  // Gemini (Left)
+  4: { points: "0,300 100,200 200,300 100,400 0,400", label: { x: 80, y: 350 } },
+  // Cancer (Bottom-Left)
+  5: { points: "100,400 200,300 300,400", label: { x: 200, y: 375 } },
+  // Leo (Bottom)
+  6: { points: "300,400 200,300 300,200 400,300 400,400", label: { x: 320, y: 350 } },
+  // Virgo (Bottom-Right)
+  7: { points: "300,200 400,100 400,300", label: { x: 370, y: 200 } },
+  // Libra (Right)
+  8: { points: "300,0 400,0 400,100 300,200 200,100", label: { x: 320, y: 50 } },
+  // Scorpio (Top-Right)
+  9: { points: "200,100 300,200 200,200", label: { x: 230, y: 160 } },
+  // Sagittarius
+  10: { points: "100,200 200,100 200,200", label: { x: 170, y: 160 } },
+  // Capricorn
+  11: { points: "100,200 200,300 200,200", label: { x: 170, y: 240 } },
+  // Aquarius
+  12: { points: "200,200 300,200 200,300", label: { x: 230, y: 240 } }
+  // Pisces
+};
+function generateEastIndianChart(natalData) {
+  const ascSignIdx = natalData.ascendant.signIndex;
+  const ascSignNumber = ascSignIdx + 1;
+  const signBoxes = [];
+  for (let s = 1; s <= 12; s++) {
+    const signIdx = s - 1;
+    const signObj = zodiacSigns[signIdx];
+    const geo = EAST_INDIAN_GEOMETRY[s] || { points: "", label: { x: 0, y: 0 } };
+    const houseNumber = (signIdx - ascSignIdx + 12) % 12 + 1;
+    const signPlanets = natalData.planets.filter((p) => p.signIndex === signIdx).map((p) => ({
+      name: p.name,
+      hindiName: p.hindiName,
+      degreeInSign: p.degreeInSign,
+      degreeFormatted: p.degreeFormatted,
+      isRetrograde: p.isRetrograde,
+      isCombust: p.isCombust
+    }));
+    signBoxes.push({
+      signNumber: s,
+      signName: signObj.eng,
+      signHindi: signObj.hin,
+      isAscendant: s === ascSignNumber,
+      houseNumber,
+      planets: signPlanets,
+      polygonPoints: geo.points,
+      labelPosition: geo.label
+    });
+  }
+  return {
+    chartType: "EastIndian",
+    viewBox: "0 0 400 400",
+    ascendantSignNumber: ascSignNumber,
+    signBoxes
+  };
+}
+
+// src/kundli/drishtiEngine.ts
+function calculateDrishtiAndConjunctions(planets) {
+  const aspects = [];
+  const conjunctions = [];
+  const naturalBenefics = ["Jupiter", "Venus", "Mercury", "Moon"];
+  for (let i = 0; i < planets.length; i++) {
+    const p1 = planets[i];
+    for (let j = 0; j < planets.length; j++) {
+      if (i === j) continue;
+      const p2 = planets[j];
+      const forwardDist = (p2.longitude - p1.longitude + 360) % 360;
+      const houseDistance = Math.floor(forwardDist / 30) + 1;
+      if (i < j && (p1.houseOccupied === p2.houseOccupied || forwardDist <= 12 || forwardDist >= 348)) {
+        let sep = Math.abs(p1.longitude - p2.longitude);
+        if (sep > 180) sep = 360 - sep;
+        const isClose = sep <= 8;
+        const isYuddha = sep <= 1 && !["Sun", "Moon", "Rahu", "Ketu"].includes(p1.name) && !["Sun", "Moon", "Rahu", "Ketu"].includes(p2.name);
+        let winner;
+        if (isYuddha) {
+          winner = p1.latitude >= p2.latitude ? p1.name : p2.name;
+        }
+        conjunctions.push({
+          planet1: p1.name,
+          planet2: p2.name,
+          signIndex: p1.signIndex,
+          houseOccupied: p1.houseOccupied,
+          separationDegrees: sep,
+          isClose,
+          isGrahaYuddha: isYuddha,
+          warWinner: winner
+        });
+      }
+      let aspectType = null;
+      let targetDeg = 180;
+      if (houseDistance === 7) {
+        aspectType = "7th";
+        targetDeg = 180;
+      } else if (p1.name === "Mars") {
+        if (houseDistance === 4) {
+          aspectType = "Special_4th";
+          targetDeg = 90;
+        } else if (houseDistance === 8) {
+          aspectType = "Special_8th";
+          targetDeg = 210;
+        }
+      } else if (["Jupiter", "Rahu", "Ketu"].includes(p1.name)) {
+        if (houseDistance === 5) {
+          aspectType = "Special_5th";
+          targetDeg = 120;
+        } else if (houseDistance === 9) {
+          aspectType = "Special_9th";
+          targetDeg = 240;
+        }
+      } else if (p1.name === "Saturn") {
+        if (houseDistance === 3) {
+          aspectType = "Special_3rd";
+          targetDeg = 60;
+        } else if (houseDistance === 10) {
+          aspectType = "Special_10th";
+          targetDeg = 270;
+        }
+      }
+      if (aspectType) {
+        let diff = Math.abs(forwardDist - targetDeg);
+        if (diff > 180) diff = 360 - diff;
+        const strength = Math.max(0, Math.min(100, Math.round((1 - diff / 15) * 100)));
+        aspects.push({
+          aspectingPlanet: p1.name,
+          aspectedPlanet: p2.name,
+          aspectType,
+          separationDegrees: forwardDist,
+          orbDegrees: diff,
+          strengthPercent: strength,
+          isBenefic: naturalBenefics.includes(p1.name)
+        });
+      }
+    }
+  }
+  return { aspects, conjunctions };
+}
+
+// src/vargas/shodashvarga.ts
+var SHASHTIAMSHA_DATA = [
+  { name: "Ghora", nature: "Malefic" },
+  { name: "Rakshasa", nature: "Malefic" },
+  { name: "Deva", nature: "Benefic" },
+  { name: "Kubera", nature: "Benefic" },
+  { name: "Yaksha", nature: "Benefic" },
+  { name: "Kinnara", nature: "Benefic" },
+  { name: "Bhrashta", nature: "Malefic" },
+  { name: "Kulaghna", nature: "Malefic" },
+  { name: "Garala", nature: "Malefic" },
+  { name: "Vahni", nature: "Malefic" },
+  { name: "Maya", nature: "Malefic" },
+  { name: "Purishaka", nature: "Malefic" },
+  { name: "Apampati", nature: "Benefic" },
+  { name: "Marutvan", nature: "Benefic" },
+  { name: "Kaala", nature: "Malefic" },
+  { name: "Sarpa", nature: "Malefic" },
+  { name: "Amrita", nature: "Benefic" },
+  { name: "Indu", nature: "Benefic" },
+  { name: "Mridu", nature: "Benefic" },
+  { name: "Komala", nature: "Benefic" },
+  { name: "Heramba", nature: "Benefic" },
+  { name: "Brahma", nature: "Benefic" },
+  { name: "Vishnu", nature: "Benefic" },
+  { name: "Maheshwara", nature: "Benefic" },
+  { name: "Deva", nature: "Benefic" },
+  { name: "Ardra", nature: "Benefic" },
+  { name: "Kalinasa", nature: "Benefic" },
+  { name: "Kshiteesha", nature: "Benefic" },
+  { name: "Kamalakara", nature: "Benefic" },
+  { name: "Gulika", nature: "Malefic" },
+  { name: "Mrityu", nature: "Malefic" },
+  { name: "Kaala", nature: "Malefic" },
+  { name: "Davagni", nature: "Malefic" },
+  { name: "Ghora", nature: "Malefic" },
+  { name: "Adhama", nature: "Malefic" },
+  { name: "Kantaka", nature: "Malefic" },
+  { name: "Sudha", nature: "Benefic" },
+  { name: "Amrita", nature: "Benefic" },
+  { name: "Purnachandra", nature: "Benefic" },
+  { name: "Vishadagdha", nature: "Malefic" },
+  { name: "Kulanasa", nature: "Malefic" },
+  { name: "Vamshakshaya", nature: "Malefic" },
+  { name: "Utpata", nature: "Malefic" },
+  { name: "Kaala", nature: "Malefic" },
+  { name: "Saumya", nature: "Benefic" },
+  { name: "Komala", nature: "Benefic" },
+  { name: "Sheetala", nature: "Benefic" },
+  { name: "Karaladamshtra", nature: "Malefic" },
+  { name: "Chandramukhi", nature: "Benefic" },
+  { name: "Praveena", nature: "Benefic" },
+  { name: "Kaalapavaka", nature: "Malefic" },
+  { name: "Dandashuka", nature: "Malefic" },
+  { name: "Nirmala", nature: "Benefic" },
+  { name: "Shubha", nature: "Benefic" },
+  { name: "Ashubha", nature: "Malefic" },
+  { name: "Atishubha", nature: "Benefic" },
+  { name: "Sudhasangyaka", nature: "Benefic" },
+  { name: "Payodhi", nature: "Benefic" },
+  { name: "Bhramana", nature: "Malefic" },
+  { name: "Indurekha", nature: "Benefic" }
+];
+var EXALTATION_SIGNS = {
+  Sun: 0,
+  Moon: 1,
+  Mars: 9,
+  Mercury: 5,
+  Jupiter: 3,
+  Venus: 11,
+  Saturn: 6
+};
+var OWN_SIGNS = {
+  Sun: [4],
+  Moon: [3],
+  Mars: [0, 7],
+  Mercury: [2, 5],
+  Jupiter: [8, 11],
+  Venus: [1, 6],
+  Saturn: [9, 10]
+};
+function calculateVarga(longitude, varga) {
+  const norm = (longitude % 360 + 360) % 360;
+  const rashiIdx = Math.floor(norm / 30);
+  const degInRashi = norm % 30;
+  const isOdd = rashiIdx % 2 === 0;
+  let targetSign = rashiIdx;
+  let part = 0;
+  let degreeInVarga = 0;
+  let shashtiData;
+  switch (varga) {
+    case "D1":
+      targetSign = rashiIdx;
+      part = 0;
+      degreeInVarga = degInRashi;
+      break;
+    case "D2": {
+      part = Math.floor(degInRashi / 15);
+      degreeInVarga = degInRashi % 15 * 2;
+      if (isOdd) {
+        targetSign = part === 0 ? 4 : 3;
+      } else {
+        targetSign = part === 0 ? 3 : 4;
+      }
+      break;
+    }
+    case "D3": {
+      part = Math.floor(degInRashi / 10);
+      degreeInVarga = degInRashi % 10 * 3;
+      targetSign = (rashiIdx + part * 4) % 12;
+      break;
+    }
+    case "D4": {
+      part = Math.floor(degInRashi / 7.5);
+      degreeInVarga = degInRashi % 7.5 * 4;
+      targetSign = (rashiIdx + part * 3) % 12;
+      break;
+    }
+    case "D7": {
+      const span = 30 / 7;
+      part = Math.min(6, Math.floor(degInRashi / span));
+      degreeInVarga = degInRashi % span * 7;
+      if (isOdd) {
+        targetSign = (rashiIdx + part) % 12;
+      } else {
+        targetSign = (rashiIdx + 6 + part) % 12;
+      }
+      break;
+    }
+    case "D9": {
+      const span = 30 / 9;
+      part = Math.min(8, Math.floor(degInRashi / span));
+      degreeInVarga = degInRashi % span * 9;
+      const triplicity = rashiIdx % 4;
+      const startSign = [0, 9, 6, 3][triplicity];
+      targetSign = (startSign + part) % 12;
+      break;
+    }
+    case "D10": {
+      part = Math.min(9, Math.floor(degInRashi / 3));
+      degreeInVarga = degInRashi % 3 * 10;
+      if (isOdd) {
+        targetSign = (rashiIdx + part) % 12;
+      } else {
+        targetSign = (rashiIdx + 8 + part) % 12;
+      }
+      break;
+    }
+    case "D12": {
+      part = Math.min(11, Math.floor(degInRashi / 2.5));
+      degreeInVarga = degInRashi % 2.5 * 12;
+      targetSign = (rashiIdx + part) % 12;
+      break;
+    }
+    case "D16": {
+      part = Math.min(15, Math.floor(degInRashi / 1.875));
+      degreeInVarga = degInRashi % 1.875 * 16;
+      const modality = rashiIdx % 3;
+      const startSign = [0, 4, 8][modality];
+      targetSign = (startSign + part) % 12;
+      break;
+    }
+    case "D20": {
+      part = Math.min(19, Math.floor(degInRashi / 1.5));
+      degreeInVarga = degInRashi % 1.5 * 20;
+      const modality = rashiIdx % 3;
+      const startSign = [0, 8, 4][modality];
+      targetSign = (startSign + part) % 12;
+      break;
+    }
+    case "D24": {
+      part = Math.min(23, Math.floor(degInRashi / 1.25));
+      degreeInVarga = degInRashi % 1.25 * 24;
+      if (isOdd) {
+        targetSign = (4 + part) % 12;
+      } else {
+        targetSign = (3 + part) % 12;
+      }
+      break;
+    }
+    case "D27": {
+      const span = 30 / 27;
+      part = Math.min(26, Math.floor(degInRashi / span));
+      degreeInVarga = degInRashi % span * 27;
+      const triplicity = rashiIdx % 4;
+      const startSign = [0, 3, 6, 9][triplicity];
+      targetSign = (startSign + part) % 12;
+      break;
+    }
+    case "D30": {
+      if (isOdd) {
+        if (degInRashi < 5) {
+          targetSign = 0;
+          part = 0;
+        } else if (degInRashi < 10) {
+          targetSign = 10;
+          part = 1;
+        } else if (degInRashi < 18) {
+          targetSign = 8;
+          part = 2;
+        } else if (degInRashi < 25) {
+          targetSign = 2;
+          part = 3;
+        } else {
+          targetSign = 6;
+          part = 4;
+        }
+      } else {
+        if (degInRashi < 5) {
+          targetSign = 1;
+          part = 0;
+        } else if (degInRashi < 12) {
+          targetSign = 5;
+          part = 1;
+        } else if (degInRashi < 20) {
+          targetSign = 11;
+          part = 2;
+        } else if (degInRashi < 25) {
+          targetSign = 9;
+          part = 3;
+        } else {
+          targetSign = 7;
+          part = 4;
+        }
+      }
+      degreeInVarga = degInRashi % 5 * 6;
+      break;
+    }
+    case "D40": {
+      part = Math.min(39, Math.floor(degInRashi / 0.75));
+      degreeInVarga = degInRashi % 0.75 * 40;
+      targetSign = (isOdd ? 0 + part : 6 + part) % 12;
+      break;
+    }
+    case "D45": {
+      const span = 30 / 45;
+      part = Math.min(44, Math.floor(degInRashi / span));
+      degreeInVarga = degInRashi % span * 45;
+      const modality = rashiIdx % 3;
+      const startSign = [0, 4, 8][modality];
+      targetSign = (startSign + part) % 12;
+      break;
+    }
+    case "D60": {
+      part = Math.min(59, Math.floor(degInRashi / 0.5));
+      degreeInVarga = degInRashi % 0.5 * 60;
+      if (isOdd) {
+        targetSign = (rashiIdx + part) % 12;
+      } else {
+        targetSign = (rashiIdx + 6 + part) % 12;
+      }
+      shashtiData = SHASHTIAMSHA_DATA[part];
+      break;
+    }
+  }
+  const signObj = zodiacSigns[targetSign];
+  const isVargottama = varga === "D9" && targetSign === rashiIdx;
+  let isPushkar = false;
+  if (varga === "D9") {
+    const triplicity = rashiIdx % 4;
+    if (triplicity === 0 && (part === 6 || part === 8)) isPushkar = true;
+    if (triplicity === 1 && (part === 2 || part === 4)) isPushkar = true;
+    if (triplicity === 2 && (part === 5 || part === 7)) isPushkar = true;
+    if (triplicity === 3 && (part === 0 || part === 2)) isPushkar = true;
+  }
+  return {
+    varga,
+    signIndex: targetSign,
+    signName: signObj.eng,
+    signHindi: signObj.hin,
+    degreeInVarga,
+    partIndex: part,
+    isVargottama,
+    isPushkar,
+    shashtiamshaDeity: shashtiData?.name,
+    shashtiamshaNature: shashtiData?.nature
+  };
+}
+function calculateAllVargasForPlanet(planetName, longitude) {
+  const vargasList = [
+    "D1",
+    "D2",
+    "D3",
+    "D4",
+    "D7",
+    "D9",
+    "D10",
+    "D12",
+    "D16",
+    "D20",
+    "D24",
+    "D27",
+    "D30",
+    "D40",
+    "D45",
+    "D60"
+  ];
+  const vargasMap = {};
+  for (const v of vargasList) {
+    vargasMap[v] = calculateVarga(longitude, v);
+  }
+  const isOwnOrExalted = (signIdx) => {
+    const exalted = EXALTATION_SIGNS[planetName];
+    if (exalted !== void 0 && signIdx === exalted) return true;
+    const owns = OWN_SIGNS[planetName];
+    if (owns && owns.includes(signIdx)) return true;
+    return false;
+  };
+  const shadvargaList = ["D1", "D2", "D3", "D9", "D12", "D30"];
+  const saptavargaList = [...shadvargaList, "D7"];
+  const dashavargaList = [...saptavargaList, "D10", "D16", "D60"];
+  let shadvargaScore = 0;
+  for (const v of shadvargaList) if (isOwnOrExalted(vargasMap[v].signIndex)) shadvargaScore++;
+  let saptavargaScore = 0;
+  for (const v of saptavargaList) if (isOwnOrExalted(vargasMap[v].signIndex)) saptavargaScore++;
+  let dashavargaScore = 0;
+  for (const v of dashavargaList) if (isOwnOrExalted(vargasMap[v].signIndex)) dashavargaScore++;
+  let shodashvargaScore = 0;
+  for (const v of vargasList) if (isOwnOrExalted(vargasMap[v].signIndex)) shodashvargaScore++;
+  let vaisheshikamsaTitle = "Sadharana (Ordinary)";
+  if (dashavargaScore >= 10) vaisheshikamsaTitle = "Shridhamamsa (Supreme)";
+  else if (dashavargaScore === 9) vaisheshikamsaTitle = "Iravatamsa";
+  else if (dashavargaScore === 8) vaisheshikamsaTitle = "Vaishnavamsa";
+  else if (dashavargaScore === 7) vaisheshikamsaTitle = "Devalokamsa";
+  else if (dashavargaScore === 6) vaisheshikamsaTitle = "Paravatamsa";
+  else if (dashavargaScore === 5) vaisheshikamsaTitle = "Simhasanamsa";
+  else if (dashavargaScore === 4) vaisheshikamsaTitle = "Gopuramsa";
+  else if (dashavargaScore === 3) vaisheshikamsaTitle = "Uttamamsa";
+  else if (dashavargaScore === 2) vaisheshikamsaTitle = "Parijatamsa";
+  return {
+    planetName,
+    longitude,
+    vargas: vargasMap,
+    dignityScore: {
+      shadvargaScore,
+      saptavargaScore,
+      dashavargaScore,
+      shodashvargaScore,
+      vaisheshikamsaTitle
+    }
+  };
+}
+function calculateShodashvarga(natalChart) {
+  const divisionalCharts = [
+    "D1",
+    "D2",
+    "D3",
+    "D4",
+    "D7",
+    "D9",
+    "D10",
+    "D12",
+    "D16",
+    "D20",
+    "D24",
+    "D27",
+    "D30",
+    "D40",
+    "D45",
+    "D60"
+  ];
+  const ascVarga = calculateAllVargasForPlanet("Ascendant", natalChart.ascendant.longitude);
+  const planetsMap = {};
+  const vaisheshikamsa = [];
+  const sevenGrahas = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"];
+  for (const p of natalChart.planets) {
+    const vMap = calculateAllVargasForPlanet(p.name, p.longitude);
+    planetsMap[p.name] = vMap;
+    if (sevenGrahas.includes(p.name)) {
+      vaisheshikamsa.push(vMap);
+    }
+  }
+  return {
+    ascendant: ascVarga,
+    planets: planetsMap,
+    divisionalCharts,
+    vaisheshikamsa
+  };
+}
+
+// src/shadbala/shadbalaEngine.ts
+var DEEP_EXALTATION = {
+  Sun: 10,
+  // Aries 10°
+  Moon: 33,
+  // Taurus 3°
+  Mars: 298,
+  // Capricorn 28°
+  Mercury: 165,
+  // Virgo 15°
+  Jupiter: 95,
+  // Cancer 5°
+  Venus: 357,
+  // Pisces 27°
+  Saturn: 200
+  // Libra 20°
+};
+var REQUIRED_RUPAS = {
+  Sun: 6.5,
+  Moon: 6,
+  Mars: 5,
+  Mercury: 7,
+  Jupiter: 6.5,
+  Venus: 5.5,
+  Saturn: 5
+};
+var NAISARGIKA_BALA = {
+  Sun: 60,
+  Moon: 51.43,
+  Venus: 42.86,
+  Jupiter: 34.29,
+  Mercury: 25.71,
+  Mars: 17.14,
+  Saturn: 8.57
+};
+var DIG_ZERO_POINTS = {
+  Sun: 3,
+  // IC (4th house) is zero, 10th is max
+  Mars: 3,
+  Jupiter: 6,
+  // 7th house is zero, 1st is max
+  Mercury: 6,
+  Moon: 9,
+  // 10th house is zero, 4th is max
+  Venus: 9,
+  Saturn: 0
+  // 1st house is zero, 7th is max
+};
+function calculateShadbala(natalData) {
+  const sevenPlanets = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"];
+  const results = [];
+  const sun = natalData.planets.find((p) => p.name === "Sun");
+  const moon = natalData.planets.find((p) => p.name === "Moon");
+  const ascLon = natalData.ascendant.longitude;
+  const isDayBirth = sun.houseOccupied >= 7 && sun.houseOccupied <= 12;
+  let moonSunDiff = (moon.longitude - sun.longitude + 360) % 360;
+  if (moonSunDiff > 180) moonSunDiff = 360 - moonSunDiff;
+  const shuklaFactor = moonSunDiff / 180;
+  for (const pName of sevenPlanets) {
+    const p = natalData.planets.find((item) => item.name === pName);
+    const vargas = calculateAllVargasForPlanet(pName, p.longitude);
+    const deepExalt = DEEP_EXALTATION[pName];
+    const deepDebil = (deepExalt + 180) % 360;
+    let distFromDebil = Math.abs(p.longitude - deepDebil);
+    if (distFromDebil > 180) distFromDebil = 360 - distFromDebil;
+    const ucchaBala = Math.min(60, distFromDebil / 3);
+    const saptavargaKeys = ["D1", "D2", "D3", "D7", "D9", "D12", "D30"];
+    let saptavargajaBala = 0;
+    for (const vk of saptavargaKeys) {
+      const sIdx = vargas.vargas[vk].signIndex;
+      if (sIdx === EXALTATION_SIGNS[pName]) saptavargajaBala += 45;
+      else if (sIdx === p.signIndex) saptavargajaBala += 30;
+      else saptavargajaBala += 15;
+    }
+    saptavargajaBala = saptavargajaBala / 7;
+    const isOddSign = p.signIndex % 2 === 0;
+    let ojhayugmaBala = 0;
+    if (["Sun", "Mars", "Jupiter"].includes(pName) && isOddSign) ojhayugmaBala = 15;
+    if (["Moon", "Venus"].includes(pName) && !isOddSign) ojhayugmaBala = 15;
+    if (["Mercury", "Saturn"].includes(pName) && isOddSign) ojhayugmaBala = 15;
+    let kendraBala = 15;
+    if ([1, 4, 7, 10].includes(p.houseOccupied)) kendraBala = 60;
+    else if ([2, 5, 8, 11].includes(p.houseOccupied)) kendraBala = 30;
+    const drekkanaPart = Math.floor(p.degreeInSign / 10);
+    let drekkanaBala = 0;
+    if (["Sun", "Mars", "Jupiter"].includes(pName) && drekkanaPart === 0) drekkanaBala = 15;
+    if (["Mercury", "Saturn"].includes(pName) && drekkanaPart === 1) drekkanaBala = 15;
+    if (["Moon", "Venus"].includes(pName) && drekkanaPart === 2) drekkanaBala = 15;
+    const sthanaTotal = ucchaBala + saptavargajaBala + ojhayugmaBala + kendraBala + drekkanaBala;
+    const zeroHouse = DIG_ZERO_POINTS[pName];
+    const zeroDeg = (natalData.ascendant.longitude + zeroHouse * 30) % 360;
+    let distZero = Math.abs(p.longitude - zeroDeg);
+    if (distZero > 180) distZero = 360 - distZero;
+    const digBala = Math.min(60, distZero / 3);
+    let natonnataBala = 30;
+    if (pName === "Mercury") natonnataBala = 60;
+    else if (isDayBirth && ["Sun", "Jupiter", "Venus"].includes(pName)) natonnataBala = 60;
+    else if (!isDayBirth && ["Moon", "Mars", "Saturn"].includes(pName)) natonnataBala = 60;
+    let pakshaBala = 30;
+    if (["Jupiter", "Venus"].includes(pName)) pakshaBala = shuklaFactor * 60;
+    else if (["Sun", "Mars", "Saturn"].includes(pName)) pakshaBala = (1 - shuklaFactor) * 60;
+    else if (pName === "Moon") pakshaBala = shuklaFactor * 60 * 2;
+    else pakshaBala = 30;
+    const tribhagaBala = 20;
+    const varshaMasaBala = 30;
+    const ayanaBala = 30;
+    const kaalaTotal = natonnataBala + pakshaBala + tribhagaBala + varshaMasaBala + ayanaBala;
+    let chestaBala = 30;
+    if (p.isRetrograde) chestaBala = 60;
+    else if (pName === "Sun" || pName === "Moon") chestaBala = pakshaBala;
+    else {
+      const speedNorm = Math.abs(p.speed);
+      chestaBala = Math.min(60, Math.max(15, speedNorm * 30));
+    }
+    const naisargikaBala = NAISARGIKA_BALA[pName];
+    let drikBala = 15;
+    const totalVirupas = sthanaTotal + digBala + kaalaTotal + chestaBala + naisargikaBala + drikBala;
+    const totalRupas = totalVirupas / 60;
+    const reqRupas = REQUIRED_RUPAS[pName];
+    const ratio = totalRupas / reqRupas;
+    const ishtaPhala = Math.sqrt(Math.max(0, ucchaBala * chestaBala));
+    const kashtaPhala = Math.sqrt(Math.max(0, (60 - ucchaBala) * (60 - chestaBala)));
+    const degInSign = p.degreeInSign;
+    let baladi = "Yuva";
+    const fiveParts = Math.min(4, Math.floor(degInSign / 6));
+    const baladiOdd = ["Bala", "Kumara", "Yuva", "Vriddha", "Mrita"];
+    const baladiEven = ["Mrita", "Vriddha", "Yuva", "Kumara", "Bala"];
+    baladi = isOddSign ? baladiOdd[fiveParts] : baladiEven[fiveParts];
+    let jagradadi = "Swapna";
+    if (p.signIndex === EXALTATION_SIGNS[pName]) jagradadi = "Jagrat";
+    else if (p.signIndex === (EXALTATION_SIGNS[pName] + 6) % 12) jagradadi = "Sushupti";
+    let deeptadi = "Shanta";
+    if (p.signIndex === EXALTATION_SIGNS[pName]) deeptadi = "Deepta";
+    else if (p.isRetrograde) deeptadi = "Shakta";
+    else if (p.isCombust) deeptadi = "Vikala";
+    else if (p.signIndex === (EXALTATION_SIGNS[pName] + 6) % 12) deeptadi = "Khala";
+    results.push({
+      planetName: pName,
+      sthanaBala: {
+        ucchaBala: Math.round(ucchaBala * 100) / 100,
+        saptavargajaBala: Math.round(saptavargajaBala * 100) / 100,
+        ojhayugmaBala,
+        kendraBala,
+        drekkanaBala,
+        total: Math.round(sthanaTotal * 100) / 100
+      },
+      digBala: Math.round(digBala * 100) / 100,
+      kaalaBala: {
+        natonnataBala,
+        pakshaBala: Math.round(pakshaBala * 100) / 100,
+        tribhagaBala,
+        varshaMasaDinaHoraBala: varshaMasaBala,
+        ayanaBala,
+        total: Math.round(kaalaTotal * 100) / 100
+      },
+      chestaBala: Math.round(chestaBala * 100) / 100,
+      naisargikaBala,
+      drikBala,
+      totalVirupas: Math.round(totalVirupas * 100) / 100,
+      totalRupas: Math.round(totalRupas * 100) / 100,
+      requiredRupas: reqRupas,
+      strengthRatio: Math.round(ratio * 100) / 100,
+      isStrong: ratio >= 1,
+      ishtaPhala: Math.round(ishtaPhala * 100) / 100,
+      kashtaPhala: Math.round(kashtaPhala * 100) / 100,
+      avasthas: {
+        baladi,
+        jagradadi,
+        deeptadi
+      }
+    });
+  }
+  const sorted = [...results].sort((a, b) => b.strengthRatio - a.strengthRatio);
+  const strongestPlanet = sorted[0].planetName;
+  const weakestPlanet = sorted[sorted.length - 1].planetName;
+  const bhavaBala = natalData.cusps.map((c) => {
+    const lord = c.signLord;
+    const lordShadbala = results.find((r) => r.planetName === lord);
+    const virupas = lordShadbala ? lordShadbala.totalVirupas * 0.75 + c.houseNumber * 10 : 350;
+    return {
+      houseNumber: c.houseNumber,
+      virupas: Math.round(virupas * 100) / 100,
+      rupas: Math.round(virupas / 60 * 100) / 100
+    };
+  });
+  return {
+    planets: results,
+    strongestPlanet,
+    weakestPlanet,
+    bhavaBala
+  };
+}
+
+// src/ashtakavarga/ashtakavargaEngine.ts
+var ASHTAKAVARGA_CONTRIBUTORS = [
+  "Sun",
+  "Moon",
+  "Mars",
+  "Mercury",
+  "Jupiter",
+  "Venus",
+  "Saturn",
+  "Ascendant"
+];
+var ASHTAKAVARGA_GRAHAS = [
+  "Sun",
+  "Moon",
+  "Mars",
+  "Mercury",
+  "Jupiter",
+  "Venus",
+  "Saturn"
+];
+var PARASHARA_BAV_RULES = {
+  Sun: {
+    Sun: [1, 2, 4, 7, 8, 9, 10, 11],
+    Moon: [3, 6, 10, 11],
+    Mars: [1, 2, 4, 7, 8, 9, 10, 11],
+    Mercury: [3, 5, 6, 9, 10, 11, 12],
+    Jupiter: [5, 6, 9, 11],
+    Venus: [6, 7, 12],
+    Saturn: [1, 2, 4, 7, 8, 9, 10, 11],
+    Ascendant: [3, 4, 6, 10, 11, 12]
+  },
+  Moon: {
+    Sun: [3, 6, 7, 8, 10, 11],
+    Moon: [1, 3, 6, 7, 10, 11],
+    Mars: [2, 3, 5, 6, 9, 10, 11],
+    Mercury: [1, 3, 4, 5, 7, 8, 10, 11],
+    Jupiter: [1, 4, 7, 8, 10, 11, 12],
+    Venus: [3, 4, 5, 7, 9, 10, 11],
+    Saturn: [3, 5, 6, 11],
+    Ascendant: [3, 6, 10, 11]
+  },
+  Mars: {
+    Sun: [3, 5, 6, 10, 11],
+    Moon: [3, 6, 11],
+    Mars: [1, 2, 4, 7, 8, 10, 11],
+    Mercury: [3, 5, 6, 11],
+    Jupiter: [6, 10, 11, 12],
+    Venus: [6, 8, 11, 12],
+    Saturn: [1, 4, 7, 8, 9, 10, 11],
+    Ascendant: [1, 3, 6, 10, 11]
+  },
+  Mercury: {
+    Sun: [5, 6, 9, 11, 12],
+    Moon: [2, 4, 6, 8, 10, 11],
+    Mars: [1, 2, 4, 7, 8, 9, 10, 11],
+    Mercury: [1, 3, 5, 6, 9, 10, 11, 12],
+    Jupiter: [6, 8, 11, 12],
+    Venus: [1, 2, 3, 4, 5, 8, 9, 11],
+    Saturn: [1, 2, 4, 7, 8, 9, 10, 11],
+    Ascendant: [1, 2, 4, 6, 8, 10, 11]
+  },
+  Jupiter: {
+    Sun: [1, 2, 3, 4, 7, 8, 9, 10, 11],
+    Moon: [2, 5, 7, 9, 11],
+    Mars: [1, 2, 4, 7, 8, 10, 11],
+    Mercury: [1, 2, 4, 5, 6, 9, 10, 11],
+    Jupiter: [1, 2, 3, 4, 7, 8, 10, 11],
+    Venus: [2, 5, 6, 9, 10, 11],
+    Saturn: [3, 5, 6, 12],
+    Ascendant: [1, 2, 4, 5, 6, 7, 9, 10, 11]
+  },
+  Venus: {
+    Sun: [8, 11, 12],
+    Moon: [1, 2, 3, 4, 5, 8, 9, 11, 12],
+    Mars: [3, 5, 6, 9, 11, 12],
+    Mercury: [3, 5, 6, 9, 11],
+    Jupiter: [5, 8, 9, 10, 11],
+    Venus: [1, 2, 3, 4, 5, 8, 9, 10, 11],
+    Saturn: [3, 4, 5, 8, 9, 10, 11],
+    Ascendant: [1, 2, 3, 4, 5, 8, 9, 11]
+  },
+  Saturn: {
+    Sun: [1, 2, 4, 7, 8, 10, 11],
+    Moon: [3, 6, 11],
+    Mars: [3, 5, 6, 10, 11, 12],
+    Mercury: [6, 8, 9, 10, 11, 12],
+    Jupiter: [5, 6, 11, 12],
+    Venus: [6, 11, 12],
+    Saturn: [3, 5, 6, 11],
+    Ascendant: [1, 3, 4, 6, 10, 11]
+  }
+};
+var EXPECTED_BAV_TOTALS = {
+  Sun: 48,
+  Moon: 49,
+  Mars: 39,
+  Mercury: 54,
+  Jupiter: 56,
+  Venus: 52,
+  Saturn: 39
+};
+var RASHI_PINDA_MULTIPLIERS = [7, 10, 8, 4, 10, 6, 7, 8, 9, 5, 11, 12];
+var GRAHA_PINDA_MULTIPLIERS = {
+  Sun: 5,
+  Moon: 5,
+  Mars: 8,
+  Mercury: 5,
+  Jupiter: 10,
+  Venus: 7,
+  Saturn: 5
+};
+var KAKSHYA_LORDS = [
+  "Saturn",
+  // 0°00' - 3°45'
+  "Jupiter",
+  // 3°45' - 7°30'
+  "Mars",
+  // 7°30' - 11°15'
+  "Sun",
+  // 11°15' - 15°00'
+  "Venus",
+  // 15°00' - 18°45'
+  "Mercury",
+  // 18°45' - 22°30'
+  "Moon",
+  // 22°30' - 26°15'
+  "Ascendant"
+  // 26°15' - 30°00'
+];
+function calculateSingleBAV(targetGraha, natalSignPlacements, lagnaSignIndex) {
+  const rules = PARASHARA_BAV_RULES[targetGraha];
+  const signs = [];
+  const bindusBySign = new Array(12).fill(0);
+  const bindusByHouse = new Array(12).fill(0);
+  let grandTotal = 0;
+  for (let s = 0; s < 12; s++) {
+    const pointsFrom = {};
+    let signTotal = 0;
+    for (const contrib of ASHTAKAVARGA_CONTRIBUTORS) {
+      const contribSign = natalSignPlacements[contrib];
+      const houseDistance = (s - contribSign + 12) % 12 + 1;
+      const isBenefic = rules[contrib].includes(houseDistance) ? 1 : 0;
+      pointsFrom[contrib] = isBenefic;
+      signTotal += isBenefic;
+    }
+    const houseFromLagna = (s - lagnaSignIndex + 12) % 12 + 1;
+    bindusBySign[s] = signTotal;
+    bindusByHouse[houseFromLagna - 1] = signTotal;
+    grandTotal += signTotal;
+    signs.push({
+      signIndex: s,
+      signName: zodiacSigns[s].eng,
+      signHindi: zodiacSigns[s].hin,
+      houseFromLagna,
+      pointsFrom,
+      totalBindus: signTotal
+    });
+  }
+  return {
+    graha: targetGraha,
+    totalPoints: grandTotal,
+    signs,
+    bindusBySign,
+    bindusByHouse
+  };
+}
+function calculateSAV(bavRecords, lagnaSignIndex) {
+  const signs = [];
+  const bindusBySign = new Array(12).fill(0);
+  const bindusByHouse = new Array(12).fill(0);
+  let totalPoints = 0;
+  for (let s = 0; s < 12; s++) {
+    const grahaPoints = {};
+    let signSum = 0;
+    for (const g of ASHTAKAVARGA_GRAHAS) {
+      const gPoints = bavRecords[g].bindusBySign[s];
+      grahaPoints[g] = gPoints;
+      signSum += gPoints;
+    }
+    const houseFromLagna = (s - lagnaSignIndex + 12) % 12 + 1;
+    bindusBySign[s] = signSum;
+    bindusByHouse[houseFromLagna - 1] = signSum;
+    totalPoints += signSum;
+    let evaluation;
+    if (signSum >= 33) evaluation = "Very Auspicious";
+    else if (signSum >= 28) evaluation = "Auspicious";
+    else if (signSum >= 24) evaluation = "Average";
+    else evaluation = "Challenging";
+    signs.push({
+      signIndex: s,
+      signName: zodiacSigns[s].eng,
+      signHindi: zodiacSigns[s].hin,
+      houseFromLagna,
+      grahaPoints,
+      totalBindus: signSum,
+      evaluation
+    });
+  }
+  return {
+    totalPoints,
+    signs,
+    bindusBySign,
+    bindusByHouse,
+    isInvariantValid: totalPoints === 337
+  };
+}
+function applyTrikonaShodhana(inputBindus) {
+  const result = [...inputBindus];
+  const trines = [
+    [0, 4, 8],
+    // Fire
+    [1, 5, 9],
+    // Earth
+    [2, 6, 10],
+    // Air
+    [3, 7, 11]
+    // Water
+  ];
+  for (const trine of trines) {
+    const [i1, i2, i3] = trine;
+    const v1 = result[i1];
+    const v2 = result[i2];
+    const v3 = result[i3];
+    if (v1 === v2 && v2 === v3) {
+      result[i1] = 0;
+      result[i2] = 0;
+      result[i3] = 0;
+      continue;
+    }
+    const zeros = (v1 === 0 ? 1 : 0) + (v2 === 0 ? 1 : 0) + (v3 === 0 ? 1 : 0);
+    if (zeros === 2) {
+      continue;
+    }
+    if (zeros === 1) {
+      if (v1 === 0) {
+        if (v2 === v3) {
+          result[i2] = 0;
+          result[i3] = 0;
+        }
+      } else if (v2 === 0) {
+        if (v1 === v3) {
+          result[i1] = 0;
+          result[i3] = 0;
+        }
+      } else {
+        if (v1 === v2) {
+          result[i1] = 0;
+          result[i2] = 0;
+        }
+      }
+      continue;
+    }
+    const minVal = Math.min(v1, v2, v3);
+    result[i1] -= minVal;
+    result[i2] -= minVal;
+    result[i3] -= minVal;
+  }
+  return result;
+}
+function applyEkadhipatyaShodhana(trikonaBindus, planetOccupations) {
+  const result = [...trikonaBindus];
+  const dualPairs = [
+    [0, 7],
+    // Mars: Aries, Scorpio
+    [1, 6],
+    // Venus: Taurus, Libra
+    [2, 5],
+    // Mercury: Gemini, Virgo
+    [8, 11],
+    // Jupiter: Sag, Pisces
+    [9, 10]
+    // Saturn: Cap, Aqua
+  ];
+  for (const pair of dualPairs) {
+    const [s1, s2] = pair;
+    let v1 = result[s1];
+    let v2 = result[s2];
+    const o1 = planetOccupations[s1] || 0;
+    const o2 = planetOccupations[s2] || 0;
+    if (v1 === 0 || v2 === 0) {
+      continue;
+    }
+    if (o1 > 0 && o2 > 0) {
+      continue;
+    }
+    if (o1 > 0 && o2 === 0) {
+      if (v1 >= v2) {
+        result[s2] = 0;
+      } else {
+        result[s2] = v1;
+      }
+      continue;
+    }
+    if (o2 > 0 && o1 === 0) {
+      if (v2 >= v1) {
+        result[s1] = 0;
+      } else {
+        result[s1] = v2;
+      }
+      continue;
+    }
+    if (o1 === 0 && o2 === 0) {
+      if (v1 === v2) {
+        result[s1] = 0;
+        result[s2] = 0;
+      } else {
+        const minVal = Math.min(v1, v2);
+        result[s1] = minVal;
+        result[s2] = minVal;
+      }
+    }
+  }
+  return result;
+}
+function calculateShodhyaPinda(shodhitaBindus, planetPlacements) {
+  let rashiPinda = 0;
+  for (let s = 0; s < 12; s++) {
+    rashiPinda += shodhitaBindus[s] * RASHI_PINDA_MULTIPLIERS[s];
+  }
+  let grahaPinda = 0;
+  for (const g of ASHTAKAVARGA_GRAHAS) {
+    const sign = planetPlacements[g];
+    const binduInSign = shodhitaBindus[sign];
+    grahaPinda += binduInSign * GRAHA_PINDA_MULTIPLIERS[g];
+  }
+  return {
+    rashiPinda,
+    grahaPinda,
+    shodhyaPinda: rashiPinda + grahaPinda
+  };
+}
+function evaluateKakshyaTransit(graha, transitLongitude, natalBAV) {
+  const normLon = (transitLongitude % 360 + 360) % 360;
+  const signIndex = Math.floor(normLon / 30);
+  const degreeInSign = normLon % 30;
+  const kakshyaIndex = Math.min(7, Math.floor(degreeInSign / 3.75));
+  const kakshyaLord = KAKSHYA_LORDS[kakshyaIndex];
+  const signDetail = natalBAV.signs[signIndex];
+  const hasBeneficPoint = (signDetail.pointsFrom[kakshyaLord] || 0) === 1;
+  return {
+    graha,
+    transitLongitude: normLon,
+    signIndex,
+    kakshyaIndex,
+    kakshyaLord,
+    degreeInSign,
+    hasBeneficPoint,
+    isFavorableTransit: hasBeneficPoint
+  };
+}
+function calculateAshtakavarga(natalChart) {
+  const natalSignPlacements = {};
+  const planetPlacements = {};
+  const planetOccupations = new Array(12).fill(0);
+  const lagnaSignIndex = natalChart.ascendant.signIndex;
+  natalSignPlacements["Ascendant"] = lagnaSignIndex;
+  for (const p of natalChart.planets) {
+    if (ASHTAKAVARGA_GRAHAS.includes(p.name)) {
+      const gName = p.name;
+      natalSignPlacements[gName] = p.signIndex;
+      planetPlacements[gName] = p.signIndex;
+      planetOccupations[p.signIndex]++;
+    }
+  }
+  const bav = {};
+  for (const g of ASHTAKAVARGA_GRAHAS) {
+    bav[g] = calculateSingleBAV(g, natalSignPlacements, lagnaSignIndex);
+  }
+  const sav = calculateSAV(bav, lagnaSignIndex);
+  const shodhana = {};
+  for (const g of ASHTAKAVARGA_GRAHAS) {
+    const original = bav[g].bindusBySign;
+    const trikona = applyTrikonaShodhana(original);
+    const ekadhipatya = applyEkadhipatyaShodhana(trikona, planetOccupations);
+    const pinda = calculateShodhyaPinda(ekadhipatya, planetPlacements);
+    shodhana[g] = {
+      graha: g,
+      originalBindus: original,
+      trikonaShodhita: trikona,
+      ekadhipatyaShodhita: ekadhipatya,
+      rashiPinda: pinda.rashiPinda,
+      grahaPinda: pinda.grahaPinda,
+      shodhyaPinda: pinda.shodhyaPinda
+    };
+  }
+  return {
+    bav,
+    sav,
+    shodhana,
+    totalSAVPoints: sav.totalPoints,
+    isSAV337InvariantMet: sav.isInvariantValid
+  };
+}
+
+// src/dasha/dashaEngine.ts
+var VIMSHOTTARI_LORDS = [
+  "Ketu",
+  "Venus",
+  "Sun",
+  "Moon",
+  "Mars",
+  "Rahu",
+  "Jupiter",
+  "Saturn",
+  "Mercury"
+];
+var VIMSHOTTARI_YEARS = {
+  Ketu: 7,
+  Venus: 20,
+  Sun: 6,
+  Moon: 10,
+  Mars: 7,
+  Rahu: 18,
+  Jupiter: 16,
+  Saturn: 19,
+  Mercury: 17
+};
+var TOTAL_VIMSHOTTARI_YEARS = 120;
+var MS_PER_YEAR = 365.2425 * 86400 * 1e3;
+var NAKSHATRA_TO_VIMSHOTTARI_LORD = [
+  "Ketu",
+  // 0: Ashwini
+  "Venus",
+  // 1: Bharani
+  "Sun",
+  // 2: Krittika
+  "Moon",
+  // 3: Rohini
+  "Mars",
+  // 4: Mrigashira
+  "Rahu",
+  // 5: Ardra
+  "Jupiter",
+  // 6: Punarvasu
+  "Saturn",
+  // 7: Pushya
+  "Mercury",
+  // 8: Ashlesha
+  "Ketu",
+  // 9: Magha
+  "Venus",
+  // 10: Purva Phalguni
+  "Sun",
+  // 11: Uttara Phalguni
+  "Moon",
+  // 12: Hasta
+  "Mars",
+  // 13: Chitra
+  "Rahu",
+  // 14: Swati
+  "Jupiter",
+  // 15: Vishakha
+  "Saturn",
+  // 16: Anuradha
+  "Mercury",
+  // 17: Jyeshtha
+  "Ketu",
+  // 18: Moola
+  "Venus",
+  // 19: Purva Ashadha
+  "Sun",
+  // 20: Uttara Ashadha
+  "Moon",
+  // 21: Shravana
+  "Mars",
+  // 22: Dhanishta
+  "Rahu",
+  // 23: Shatabhisha
+  "Jupiter",
+  // 24: Purva Bhadrapada
+  "Saturn",
+  // 25: Uttara Bhadrapada
+  "Mercury"
+  // 26: Revati
+];
+var YOGINI_NAMES = [
+  "Mangla",
+  "Pingla",
+  "Dhanya",
+  "Bhramari",
+  "Bhadrika",
+  "Ulka",
+  "Siddha",
+  "Sankata"
+];
+var YOGINI_DETAILS = {
+  Mangla: { lord: "Moon", years: 1 },
+  Pingla: { lord: "Sun", years: 2 },
+  Dhanya: { lord: "Jupiter", years: 3 },
+  Bhramari: { lord: "Mars", years: 4 },
+  Bhadrika: { lord: "Mercury", years: 5 },
+  Ulka: { lord: "Saturn", years: 6 },
+  Siddha: { lord: "Venus", years: 7 },
+  Sankata: { lord: "Rahu", years: 8 }
+};
+var TOTAL_YOGINI_YEARS = 36;
+var ASHTOTTARI_LORDS = [
+  "Sun",
+  "Moon",
+  "Mars",
+  "Mercury",
+  "Saturn",
+  "Jupiter",
+  "Rahu",
+  "Venus"
+];
+var ASHTOTTARI_YEARS = {
+  Sun: 6,
+  Moon: 15,
+  Mars: 8,
+  Mercury: 17,
+  Saturn: 10,
+  Jupiter: 19,
+  Rahu: 12,
+  Venus: 21
+};
+var TOTAL_ASHTOTTARI_YEARS = 108;
+function addYearsToDate(baseDate, fractionalYears) {
+  const ms = Math.round(fractionalYears * MS_PER_YEAR);
+  return new Date(baseDate.getTime() + ms);
+}
+var EXALTATION_SIGNS2 = {
+  Sun: 0,
+  // Aries
+  Moon: 1,
+  // Taurus
+  Mars: 9,
+  // Capricorn
+  Mercury: 5,
+  // Virgo
+  Jupiter: 3,
+  // Cancer
+  Venus: 11,
+  // Pisces
+  Saturn: 6
+  // Libra
+};
+var DEBILITATION_SIGNS = {
+  Sun: 6,
+  // Libra
+  Moon: 7,
+  // Scorpio
+  Mars: 3,
+  // Cancer
+  Mercury: 11,
+  // Pisces
+  Jupiter: 9,
+  // Capricorn
+  Venus: 5,
+  // Virgo
+  Saturn: 0
+  // Aries
+};
+var SIGN_LORDS2 = [
+  "Mars",
+  // 0: Aries
+  "Venus",
+  // 1: Taurus
+  "Mercury",
+  // 2: Gemini
+  "Moon",
+  // 3: Cancer
+  "Sun",
+  // 4: Leo
+  "Mercury",
+  // 5: Virgo
+  "Venus",
+  // 6: Libra
+  "Mars",
+  // 7: Scorpio
+  "Jupiter",
+  // 8: Sagittarius
+  "Saturn",
+  // 9: Capricorn
+  "Saturn",
+  // 10: Aquarius
+  "Jupiter"
+  // 11: Pisces
+];
+var JAIMINI_DIRECT_SIGNS = [0, 1, 2, 6, 7, 8];
+function calculateVimshottariBalance(moonLongitude) {
+  const nakshatraSpan = 360 / 27;
+  const normLon = (moonLongitude % 360 + 360) % 360;
+  const nakshatraIndex = Math.floor(normLon / nakshatraSpan);
+  const degreeInNakshatra = normLon - nakshatraIndex * nakshatraSpan;
+  const fractionElapsed = degreeInNakshatra / nakshatraSpan;
+  const fractionRemaining = 1 - fractionElapsed;
+  const birthLord = NAKSHATRA_TO_VIMSHOTTARI_LORD[nakshatraIndex];
+  const totalYears = VIMSHOTTARI_YEARS[birthLord];
+  const balanceDecimalYears = fractionRemaining * totalYears;
+  const balanceYears = Math.floor(balanceDecimalYears);
+  const balanceMonths = Math.floor((balanceDecimalYears - balanceYears) * 12);
+  const balanceDays = Math.floor(
+    ((balanceDecimalYears - balanceYears) * 12 - balanceMonths) * 30.4375
+  );
+  return {
+    birthLord,
+    balanceYears,
+    balanceMonths,
+    balanceDays,
+    fractionRemaining
+  };
+}
+function generateVimshottariTimeline(birthDate, moonLongitude, generateSookshma = false) {
+  const balance = calculateVimshottariBalance(moonLongitude);
+  const birthLordIndex = VIMSHOTTARI_LORDS.indexOf(balance.birthLord);
+  const timeline = [];
+  let currentMDStartDate = new Date(birthDate.getTime());
+  for (let m = 0; m < 9; m++) {
+    const lordIndex = (birthLordIndex + m) % 9;
+    const mdLord = VIMSHOTTARI_LORDS[lordIndex];
+    const fullMDYears = VIMSHOTTARI_YEARS[mdLord];
+    const mdDurationYears = m === 0 ? fullMDYears * balance.fractionRemaining : fullMDYears;
+    const currentMDEndDate = addYearsToDate(currentMDStartDate, mdDurationYears);
+    const antardashas = [];
+    let currentADStartDate = new Date(currentMDStartDate.getTime());
+    const mdBaseLordIndex = lordIndex;
+    let adStartIndex = 0;
+    let elapsedInFirstMDYears = m === 0 ? fullMDYears * (1 - balance.fractionRemaining) : 0;
+    let accumulatedADYears = 0;
+    for (let a = 0; a < 9; a++) {
+      const adLordIndex = (mdBaseLordIndex + a) % 9;
+      const adLord = VIMSHOTTARI_LORDS[adLordIndex];
+      const adFullYears = fullMDYears * VIMSHOTTARI_YEARS[adLord] / TOTAL_VIMSHOTTARI_YEARS;
+      if (m === 0) {
+        if (accumulatedADYears + adFullYears <= elapsedInFirstMDYears) {
+          accumulatedADYears += adFullYears;
+          continue;
+        }
+      }
+      let adDurationYears = adFullYears;
+      if (m === 0 && antardashas.length === 0 && accumulatedADYears < elapsedInFirstMDYears) {
+        const alreadyElapsedInAD = elapsedInFirstMDYears - accumulatedADYears;
+        adDurationYears = adFullYears - alreadyElapsedInAD;
+      }
+      let currentADEndDate = addYearsToDate(currentADStartDate, adDurationYears);
+      if (a === 8 || m === 0 && currentADEndDate.getTime() > currentMDEndDate.getTime()) {
+        currentADEndDate = new Date(currentMDEndDate.getTime());
+      }
+      const pratyantardashas = [];
+      let currentPDStartDate = new Date(currentADStartDate.getTime());
+      for (let p = 0; p < 9; p++) {
+        const pdLordIndex = (adLordIndex + p) % 9;
+        const pdLord = VIMSHOTTARI_LORDS[pdLordIndex];
+        const pdDurationYears = adDurationYears * VIMSHOTTARI_YEARS[pdLord] / TOTAL_VIMSHOTTARI_YEARS;
+        let currentPDEndDate = addYearsToDate(currentPDStartDate, pdDurationYears);
+        if (p === 8) {
+          currentPDEndDate = new Date(currentADEndDate.getTime());
+        }
+        const pdEntry = {
+          pratyantardashaLord: pdLord,
+          antardashaLord: adLord,
+          mahadashaLord: mdLord,
+          startDate: new Date(currentPDStartDate.getTime()),
+          endDate: new Date(currentPDEndDate.getTime()),
+          durationDays: (currentPDEndDate.getTime() - currentPDStartDate.getTime()) / (86400 * 1e3)
+        };
+        if (generateSookshma) {
+          const sookshmas = [];
+          let currentSDStartDate = new Date(currentPDStartDate.getTime());
+          for (let s = 0; s < 9; s++) {
+            const sdLordIndex = (pdLordIndex + s) % 9;
+            const sdLord = VIMSHOTTARI_LORDS[sdLordIndex];
+            const sdDurationYears = pdDurationYears * VIMSHOTTARI_YEARS[sdLord] / TOTAL_VIMSHOTTARI_YEARS;
+            let currentSDEndDate = addYearsToDate(currentSDStartDate, sdDurationYears);
+            if (s === 8) {
+              currentSDEndDate = new Date(currentPDEndDate.getTime());
+            }
+            sookshmas.push({
+              sookshmaLord: sdLord,
+              pratyantardashaLord: pdLord,
+              antardashaLord: adLord,
+              mahadashaLord: mdLord,
+              startDate: new Date(currentSDStartDate.getTime()),
+              endDate: new Date(currentSDEndDate.getTime()),
+              durationDays: (currentSDEndDate.getTime() - currentSDStartDate.getTime()) / (86400 * 1e3)
+            });
+            currentSDStartDate = new Date(currentSDEndDate.getTime());
+          }
+          pdEntry.sookshmas = sookshmas;
+        }
+        pratyantardashas.push(pdEntry);
+        currentPDStartDate = new Date(currentPDEndDate.getTime());
+      }
+      antardashas.push({
+        antardashaLord: adLord,
+        mahadashaLord: mdLord,
+        startDate: new Date(currentADStartDate.getTime()),
+        endDate: new Date(currentADEndDate.getTime()),
+        durationDays: (currentADEndDate.getTime() - currentADStartDate.getTime()) / (86400 * 1e3),
+        pratyantardashas
+      });
+      currentADStartDate = new Date(currentADEndDate.getTime());
+      if (currentADStartDate.getTime() >= currentMDEndDate.getTime()) {
+        break;
+      }
+    }
+    timeline.push({
+      mahadashaLord: mdLord,
+      startDate: new Date(currentMDStartDate.getTime()),
+      endDate: new Date(currentMDEndDate.getTime()),
+      durationDays: (currentMDEndDate.getTime() - currentMDStartDate.getTime()) / (86400 * 1e3),
+      antardashas
+    });
+    currentMDStartDate = new Date(currentMDEndDate.getTime());
+  }
+  return { balance, timeline };
+}
+function findCurrentVimshottari(timeline, targetDate) {
+  const t = targetDate.getTime();
+  for (const md of timeline) {
+    if (t >= md.startDate.getTime() && t < md.endDate.getTime()) {
+      for (const ad of md.antardashas) {
+        if (t >= ad.startDate.getTime() && t < ad.endDate.getTime()) {
+          for (const pd of ad.pratyantardashas) {
+            if (t >= pd.startDate.getTime() && t < pd.endDate.getTime()) {
+              let sookshmaLord = pd.pratyantardashaLord;
+              if (pd.sookshmas && pd.sookshmas.length > 0) {
+                for (const sd of pd.sookshmas) {
+                  if (t >= sd.startDate.getTime() && t < sd.endDate.getTime()) {
+                    sookshmaLord = sd.sookshmaLord;
+                    break;
+                  }
+                }
+              }
+              return {
+                mahadasha: md.mahadashaLord,
+                antardasha: ad.antardashaLord,
+                pratyantardasha: pd.pratyantardashaLord,
+                sookshma: sookshmaLord,
+                startDate: pd.startDate,
+                endDate: pd.endDate
+              };
+            }
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+function calculateYoginiDasha(birthDate, moonLongitude) {
+  const nakshatraSpan = 360 / 27;
+  const normLon = (moonLongitude % 360 + 360) % 360;
+  const nakshatraIndex = Math.floor(normLon / nakshatraSpan);
+  const nakshatraNum = nakshatraIndex + 1;
+  const degreeInNakshatra = normLon - nakshatraIndex * nakshatraSpan;
+  const fractionRemaining = 1 - degreeInNakshatra / nakshatraSpan;
+  let remainder = (nakshatraNum + 3) % 8;
+  if (remainder === 0) remainder = 8;
+  const startingYoginiIndex = remainder - 1;
+  const startingYoginiName = YOGINI_NAMES[startingYoginiIndex];
+  const fullFirstYoginiYears = YOGINI_DETAILS[startingYoginiName].years;
+  const birthBalanceYears = fractionRemaining * fullFirstYoginiYears;
+  const timeline = [];
+  let currentStartDate = new Date(birthDate.getTime());
+  for (let i = 0; i < 8; i++) {
+    const yIdx = (startingYoginiIndex + i) % 8;
+    const yName = YOGINI_NAMES[yIdx];
+    const fullYears = YOGINI_DETAILS[yName].years;
+    const actualYears = i === 0 ? birthBalanceYears : fullYears;
+    const currentEndDate = addYearsToDate(currentStartDate, actualYears);
+    const antardashas = [];
+    let adStart = new Date(currentStartDate.getTime());
+    for (let a = 0; a < 8; a++) {
+      const adYIdx = (yIdx + a) % 8;
+      const adName = YOGINI_NAMES[adYIdx];
+      const adLord = YOGINI_DETAILS[adName].lord;
+      const adYears = actualYears * YOGINI_DETAILS[adName].years / TOTAL_YOGINI_YEARS;
+      let adEnd = addYearsToDate(adStart, adYears);
+      if (a === 7) adEnd = new Date(currentEndDate.getTime());
+      antardashas.push({
+        yoginiName: adName,
+        lord: adLord,
+        startDate: new Date(adStart.getTime()),
+        endDate: new Date(adEnd.getTime()),
+        durationDays: (adEnd.getTime() - adStart.getTime()) / (86400 * 1e3)
+      });
+      adStart = new Date(adEnd.getTime());
+    }
+    timeline.push({
+      yoginiName: yName,
+      lord: YOGINI_DETAILS[yName].lord,
+      startDate: new Date(currentStartDate.getTime()),
+      endDate: new Date(currentEndDate.getTime()),
+      durationDays: (currentEndDate.getTime() - currentStartDate.getTime()) / (86400 * 1e3),
+      antardashas
+    });
+    currentStartDate = new Date(currentEndDate.getTime());
+  }
+  return {
+    birthYogini: startingYoginiName,
+    birthBalanceYears,
+    timeline
+  };
+}
+function calculateAshtottariDasha(natalChart) {
+  const lagnaLordName = natalChart.ascendant.signLord;
+  const lagnaLord = natalChart.planets.find((p) => p.name === lagnaLordName);
+  const rahu = natalChart.planets.find((p) => p.name === "Rahu");
+  let isApplicable = false;
+  let applicabilityReason = "Rahu is not in Kendra or Trikona from Lagna Lord.";
+  if (lagnaLord && rahu) {
+    const houseFromLord = (rahu.houseOccupied - lagnaLord.houseOccupied + 12) % 12 + 1;
+    if ([1, 4, 7, 10, 5, 9].includes(houseFromLord)) {
+      isApplicable = true;
+      applicabilityReason = `Rahu is in house ${houseFromLord} (Kendra/Trikona) from Lagna Lord (${lagnaLordName}).`;
+    }
+  }
+  const moon = natalChart.planets.find((p) => p.name === "Moon");
+  const nakshatraSpan = 360 / 27;
+  const normLon = (moon.longitude % 360 + 360) % 360;
+  const nakIndex = Math.floor(normLon / nakshatraSpan);
+  const fracRemaining = 1 - (normLon - nakIndex * nakshatraSpan) / nakshatraSpan;
+  const nakToAshtottariLord = [
+    "Rahu",
+    // 0: Ashwini
+    "Rahu",
+    // 1: Bharani
+    "Rahu",
+    // 2: Krittika
+    "Venus",
+    // 3: Rohini
+    "Venus",
+    // 4: Mrigashira
+    "Sun",
+    // 5: Ardra
+    "Sun",
+    // 6: Punarvasu
+    "Sun",
+    // 7: Pushya
+    "Sun",
+    // 8: Ashlesha
+    "Moon",
+    // 9: Magha
+    "Moon",
+    // 10: Purva Phalguni
+    "Moon",
+    // 11: Uttara Phalguni
+    "Mars",
+    // 12: Hasta
+    "Mars",
+    // 13: Chitra
+    "Mars",
+    // 14: Swati
+    "Mars",
+    // 15: Vishakha
+    "Mercury",
+    // 16: Anuradha
+    "Mercury",
+    // 17: Jyeshtha
+    "Mercury",
+    // 18: Moola
+    "Saturn",
+    // 19: Purva Ashadha
+    "Saturn",
+    // 20: Uttara Ashadha
+    "Saturn",
+    // 21: Shravana
+    "Saturn",
+    // 22: Dhanishta
+    "Jupiter",
+    // 23: Shatabhisha
+    "Jupiter",
+    // 24: Purva Bhadrapada
+    "Jupiter",
+    // 25: Uttara Bhadrapada
+    "Rahu"
+    // 26: Revati
+  ];
+  const birthLord = nakToAshtottariLord[nakIndex];
+  const birthLordIndex = ASHTOTTARI_LORDS.indexOf(birthLord);
+  const birthBalanceYears = fracRemaining * ASHTOTTARI_YEARS[birthLord];
+  const timeline = [];
+  let currentStart = new Date(natalChart.birthDate.getTime());
+  for (let i = 0; i < 8; i++) {
+    const lIdx = (birthLordIndex + i) % 8;
+    const lord = ASHTOTTARI_LORDS[lIdx];
+    const fullYears = ASHTOTTARI_YEARS[lord];
+    const actualYears = i === 0 ? birthBalanceYears : fullYears;
+    const currentEnd = addYearsToDate(currentStart, actualYears);
+    const antardashas = [];
+    let adStart = new Date(currentStart.getTime());
+    for (let a = 0; a < 8; a++) {
+      const adLord = ASHTOTTARI_LORDS[(lIdx + a) % 8];
+      const adYears = actualYears * ASHTOTTARI_YEARS[adLord] / TOTAL_ASHTOTTARI_YEARS;
+      let adEnd = addYearsToDate(adStart, adYears);
+      if (a === 7) adEnd = new Date(currentEnd.getTime());
+      antardashas.push({
+        lord: adLord,
+        startDate: new Date(adStart.getTime()),
+        endDate: new Date(adEnd.getTime())
+      });
+      adStart = new Date(adEnd.getTime());
+    }
+    timeline.push({
+      lord,
+      startDate: new Date(currentStart.getTime()),
+      endDate: new Date(currentEnd.getTime()),
+      durationDays: (currentEnd.getTime() - currentStart.getTime()) / (86400 * 1e3),
+      antardashas
+    });
+    currentStart = new Date(currentEnd.getTime());
+  }
+  return {
+    isApplicable,
+    applicabilityReason,
+    birthLord,
+    birthBalanceYears,
+    timeline
+  };
+}
+function calculateCharaDasha(natalChart) {
+  const lagnaSign = natalChart.ascendant.signIndex;
+  const isDirectProgression = JAIMINI_DIRECT_SIGNS.includes(lagnaSign);
+  const orderOfSigns = [];
+  for (let i = 0; i < 12; i++) {
+    const s = isDirectProgression ? (lagnaSign + i) % 12 : ((lagnaSign - i) % 12 + 12) % 12;
+    orderOfSigns.push(s);
+  }
+  const timeline = [];
+  let currentStart = new Date(natalChart.birthDate.getTime());
+  for (const s of orderOfSigns) {
+    const signLord = SIGN_LORDS2[s];
+    const lordPlanet = natalChart.planets.find((p) => p.name === signLord);
+    const lordSign = lordPlanet ? lordPlanet.signIndex : s;
+    let duration;
+    if (lordSign === s) {
+      duration = 12;
+    } else {
+      const isSignDirect = JAIMINI_DIRECT_SIGNS.includes(s);
+      const dist = isSignDirect ? (lordSign - s + 12) % 12 + 1 : (s - lordSign + 12) % 12 + 1;
+      duration = dist - 1;
+      if (duration === 0) duration = 12;
+    }
+    if (lordPlanet) {
+      if (lordSign === EXALTATION_SIGNS2[signLord]) {
+        duration = Math.min(12, duration + 1);
+      } else if (lordSign === DEBILITATION_SIGNS[signLord]) {
+        duration = Math.max(1, duration - 1);
+      }
+    }
+    const currentEnd = addYearsToDate(currentStart, duration);
+    timeline.push({
+      signIndex: s,
+      signName: zodiacSigns[s].eng,
+      signHindi: zodiacSigns[s].hin,
+      signLord,
+      durationYears: duration,
+      startDate: new Date(currentStart.getTime()),
+      endDate: new Date(currentEnd.getTime()),
+      durationDays: (currentEnd.getTime() - currentStart.getTime()) / (86400 * 1e3)
+    });
+    currentStart = new Date(currentEnd.getTime());
+  }
+  return {
+    lagnaSignIndex: lagnaSign,
+    isDirectProgression,
+    orderOfSigns,
+    timeline
+  };
+}
+function calculateAllDashas(natalChart, queryDate = /* @__PURE__ */ new Date()) {
+  const moon = natalChart.planets.find((p) => p.name === "Moon");
+  const vimshottariData = generateVimshottariTimeline(
+    natalChart.birthDate,
+    moon.longitude,
+    true
+  );
+  const currentVim = findCurrentVimshottari(vimshottariData.timeline, queryDate) || {
+    mahadasha: vimshottariData.timeline[0].mahadashaLord,
+    antardasha: vimshottariData.timeline[0].antardashas[0].antardashaLord,
+    pratyantardasha: vimshottariData.timeline[0].antardashas[0].pratyantardashas[0].pratyantardashaLord,
+    sookshma: vimshottariData.timeline[0].antardashas[0].pratyantardashas[0].pratyantardashaLord,
+    startDate: vimshottariData.timeline[0].startDate,
+    endDate: vimshottariData.timeline[0].endDate
+  };
+  const yogini = calculateYoginiDasha(natalChart.birthDate, moon.longitude);
+  const ashtottari = calculateAshtottariDasha(natalChart);
+  const chara = calculateCharaDasha(natalChart);
+  return {
+    vimshottari: {
+      balance: vimshottariData.balance,
+      timeline: vimshottariData.timeline,
+      current: currentVim
+    },
+    yogini,
+    ashtottari,
+    chara
+  };
+}
+
+// src/synthesis/predictiveEngine.ts
+var OWN_SIGNS2 = {
+  Sun: [4],
+  Moon: [3],
+  Mars: [0, 7],
+  Mercury: [2, 5],
+  Jupiter: [8, 11],
+  Venus: [1, 6],
+  Saturn: [9, 10]
+};
+var EXALTATION_SIGNS3 = {
+  Sun: 0,
+  Moon: 1,
+  Mars: 9,
+  Mercury: 5,
+  Jupiter: 3,
+  Venus: 11,
+  Saturn: 6
+};
+var DEBILITATION_SIGNS2 = {
+  Sun: 6,
+  Moon: 7,
+  Mars: 3,
+  Mercury: 11,
+  Jupiter: 9,
+  Venus: 5,
+  Saturn: 0
+};
+var SIGN_NAMES = [
+  "Aries",
+  "Taurus",
+  "Gemini",
+  "Cancer",
+  "Leo",
+  "Virgo",
+  "Libra",
+  "Scorpio",
+  "Sagittarius",
+  "Capricorn",
+  "Aquarius",
+  "Pisces"
+];
+var isKendra = (house) => [1, 4, 7, 10].includes(house);
+var isTrikona = (house) => [1, 5, 9].includes(house);
+var isDusthana = (house) => [6, 8, 12].includes(house);
+function evaluateParashariYogas(natalChart) {
+  const yogas = [];
+  const planets = natalChart.planets;
+  const getP = (name) => planets.find((p) => p.name === name);
+  const sun = getP("Sun");
+  const moon = getP("Moon");
+  const mars = getP("Mars");
+  const mercury = getP("Mercury");
+  const jupiter = getP("Jupiter");
+  const venus = getP("Venus");
+  const saturn = getP("Saturn");
+  const rahu = getP("Rahu");
+  const ketu = getP("Ketu");
+  if (mars && isKendra(mars.houseOccupied)) {
+    if (mars.signIndex === EXALTATION_SIGNS3.Mars || OWN_SIGNS2.Mars.includes(mars.signIndex)) {
+      yogas.push({
+        name: "Ruchaka Yoga",
+        category: "Mahapurusha",
+        isFormed: true,
+        beneficence: "High",
+        planetsInvolved: ["Mars"],
+        description: "Mars is in a Kendra in own or exaltation sign, bestowing courage, leadership, and physical prowess."
+      });
+    }
+  }
+  if (mercury && isKendra(mercury.houseOccupied)) {
+    if (mercury.signIndex === EXALTATION_SIGNS3.Mercury || OWN_SIGNS2.Mercury.includes(mercury.signIndex)) {
+      yogas.push({
+        name: "Bhadra Yoga",
+        category: "Mahapurusha",
+        isFormed: true,
+        beneficence: "High",
+        planetsInvolved: ["Mercury"],
+        description: "Mercury is in a Kendra in own or exaltation sign, bestowing sharp intellect, eloquence, and commercial mastery."
+      });
+    }
+  }
+  if (jupiter && isKendra(jupiter.houseOccupied)) {
+    if (jupiter.signIndex === EXALTATION_SIGNS3.Jupiter || OWN_SIGNS2.Jupiter.includes(jupiter.signIndex)) {
+      yogas.push({
+        name: "Hamsa Yoga",
+        category: "Mahapurusha",
+        isFormed: true,
+        beneficence: "High",
+        planetsInvolved: ["Jupiter"],
+        description: "Jupiter is in a Kendra in own or exaltation sign, conferring wisdom, spiritual elevation, and righteous authority."
+      });
+    }
+  }
+  if (venus && isKendra(venus.houseOccupied)) {
+    if (venus.signIndex === EXALTATION_SIGNS3.Venus || OWN_SIGNS2.Venus.includes(venus.signIndex)) {
+      yogas.push({
+        name: "Malavya Yoga",
+        category: "Mahapurusha",
+        isFormed: true,
+        beneficence: "High",
+        planetsInvolved: ["Venus"],
+        description: "Venus is in a Kendra in own or exaltation sign, bestowing artistic beauty, luxury, wealth, and grace."
+      });
+    }
+  }
+  if (saturn && isKendra(saturn.houseOccupied)) {
+    if (saturn.signIndex === EXALTATION_SIGNS3.Saturn || OWN_SIGNS2.Saturn.includes(saturn.signIndex)) {
+      yogas.push({
+        name: "Sasa Yoga",
+        category: "Mahapurusha",
+        isFormed: true,
+        beneficence: "High",
+        planetsInvolved: ["Saturn"],
+        description: "Saturn is in a Kendra in own or exaltation sign, granting profound authority, endurance, and command over masses."
+      });
+    }
+  }
+  if (jupiter && moon) {
+    const jupFromMoon = (jupiter.houseOccupied - moon.houseOccupied + 12) % 12 + 1;
+    if (isKendra(jupFromMoon)) {
+      yogas.push({
+        name: "Gajakesari Yoga",
+        category: "Chandra",
+        isFormed: true,
+        beneficence: "High",
+        planetsInvolved: ["Jupiter", "Moon"],
+        description: "Jupiter is in a Kendra from Moon, granting invincible intellect, virtue, enduring prosperity, and social renown."
+      });
+    }
+  }
+  if (moon) {
+    const nonLuminaries = [mars, mercury, jupiter, venus, saturn].filter(Boolean);
+    const in2ndFromMoon = nonLuminaries.filter((p) => (p.houseOccupied - moon.houseOccupied + 12) % 12 + 1 === 2);
+    const in12thFromMoon = nonLuminaries.filter((p) => (p.houseOccupied - moon.houseOccupied + 12) % 12 + 1 === 12);
+    if (in2ndFromMoon.length > 0 && in12thFromMoon.length > 0) {
+      yogas.push({
+        name: "Durdhara Yoga",
+        category: "Chandra",
+        isFormed: true,
+        beneficence: "High",
+        planetsInvolved: ["Moon", ...in2ndFromMoon.map((p) => p.name), ...in12thFromMoon.map((p) => p.name)],
+        description: "Planets are situated on both 2nd and 12th from Moon, providing stability, abundant riches, and conveyances."
+      });
+    } else if (in2ndFromMoon.length > 0) {
+      yogas.push({
+        name: "Sunapha Yoga",
+        category: "Chandra",
+        isFormed: true,
+        beneficence: "Moderate",
+        planetsInvolved: ["Moon", ...in2ndFromMoon.map((p) => p.name)],
+        description: "Planets in 2nd from Moon, granting self-acquired riches and intelligence."
+      });
+    } else if (in12thFromMoon.length > 0) {
+      yogas.push({
+        name: "Anapha Yoga",
+        category: "Chandra",
+        isFormed: true,
+        beneficence: "Moderate",
+        planetsInvolved: ["Moon", ...in12thFromMoon.map((p) => p.name)],
+        description: "Planets in 12th from Moon, conferring good health, generous disposition, and contentment."
+      });
+    } else {
+      const planetsInKendraFromLagna = planets.filter((p) => isKendra(p.houseOccupied) && p.name !== "Moon" && p.name !== "Rahu" && p.name !== "Ketu");
+      const isCancelled = planetsInKendraFromLagna.length > 0;
+      if (!isCancelled) {
+        yogas.push({
+          name: "Kemadruma Yoga",
+          category: "Chandra",
+          isFormed: true,
+          beneficence: "Adverse",
+          planetsInvolved: ["Moon"],
+          description: "No planets flank Moon and no cancellation in Kendra, indicating mental vacillation and financial instability."
+        });
+      }
+    }
+  }
+  if (sun && mercury && sun.houseOccupied === mercury.houseOccupied) {
+    yogas.push({
+      name: "Budhaditya Yoga",
+      category: "Surya",
+      isFormed: true,
+      beneficence: "High",
+      planetsInvolved: ["Sun", "Mercury"],
+      description: "Sun and Mercury conjunction creates royal intellect, administrative capability, and academic mastery."
+    });
+  }
+  const houseLords = natalChart.cusps && natalChart.cusps.length === 12 ? natalChart.cusps.map((c) => c.signLord) : Array.from({ length: 12 }, (_, i) => SIGN_LORDS[(natalChart.ascendant.signIndex + i) % 12]);
+  const lord6 = getP(houseLords[5]);
+  const lord8 = getP(houseLords[7]);
+  const lord12 = getP(houseLords[11]);
+  if (lord6 && isDusthana(lord6.houseOccupied)) {
+    yogas.push({
+      name: "Harsha Viparita Raja Yoga",
+      category: "Viparita",
+      isFormed: true,
+      beneficence: "High",
+      planetsInvolved: [lord6.name],
+      description: "6th lord placed in a Dusthana (6/8/12), turning obstacles into sudden victory and prosperity."
+    });
+  }
+  if (lord8 && isDusthana(lord8.houseOccupied)) {
+    yogas.push({
+      name: "Sarala Viparita Raja Yoga",
+      category: "Viparita",
+      isFormed: true,
+      beneficence: "High",
+      planetsInvolved: [lord8.name],
+      description: "8th lord placed in a Dusthana (6/8/12), conferring fearlessness, long life, and sudden windfall."
+    });
+  }
+  if (lord12 && isDusthana(lord12.houseOccupied)) {
+    yogas.push({
+      name: "Vimala Viparita Raja Yoga",
+      category: "Viparita",
+      isFormed: true,
+      beneficence: "High",
+      planetsInvolved: [lord12.name],
+      description: "12th lord placed in a Dusthana (6/8/12), granting independence, spiritual bliss, and frugal wealth."
+    });
+  }
+  for (const p of planets) {
+    if (p.signIndex === DEBILITATION_SIGNS2[p.name]) {
+      const debLordName = SIGN_LORDS[p.signIndex];
+      const debLord = getP(debLordName);
+      let isCancelled = false;
+      if (debLord && (isKendra(debLord.houseOccupied) || moon && isKendra((debLord.houseOccupied - moon.houseOccupied + 12) % 12 + 1))) {
+        isCancelled = true;
+      }
+      const exSignOfP = EXALTATION_SIGNS3[p.name];
+      const exLordName = SIGN_LORDS[exSignOfP];
+      const exLord = getP(exLordName);
+      if (exLord && isKendra(exLord.houseOccupied)) {
+        isCancelled = true;
+      }
+      if (isCancelled) {
+        yogas.push({
+          name: `Neechbhanga Raja Yoga (${p.name})`,
+          category: "Neechbhanga",
+          isFormed: true,
+          beneficence: "High",
+          planetsInvolved: [p.name, debLordName],
+          description: `Debilitation of ${p.name} is cancelled and elevated to Raja Yoga by Kendra dispositor support.`
+        });
+      }
+    }
+  }
+  return yogas;
+}
+function evaluateMaleficDoshas(natalChart) {
+  const doshas = [];
+  const planets = natalChart.planets;
+  const getP = (name) => planets.find((p) => p.name === name);
+  const mars = getP("Mars");
+  const moon = getP("Moon");
+  const venus = getP("Venus");
+  const jupiter = getP("Jupiter");
+  const saturn = getP("Saturn");
+  const rahu = getP("Rahu");
+  const ketu = getP("Ketu");
+  const sun = getP("Sun");
+  if (mars) {
+    const kujaHouses = [1, 2, 4, 7, 8, 12];
+    const isFromLagna = kujaHouses.includes(mars.houseOccupied);
+    const marsFromMoon = moon ? (mars.houseOccupied - moon.houseOccupied + 12) % 12 + 1 : 0;
+    const isFromMoon = kujaHouses.includes(marsFromMoon);
+    const marsFromVenus = venus ? (mars.houseOccupied - venus.houseOccupied + 12) % 12 + 1 : 0;
+    const isFromVenus = kujaHouses.includes(marsFromVenus);
+    const hasManglik = isFromLagna || isFromMoon || isFromVenus;
+    const cancellations = [];
+    if (hasManglik) {
+      if (mars.signIndex === 0 && mars.houseOccupied === 1) cancellations.push("Mars in Aries in 1st house cancels Kuja dosha.");
+      if (mars.signIndex === 7 && mars.houseOccupied === 4) cancellations.push("Mars in Scorpio in 4th house cancels Kuja dosha.");
+      if (mars.signIndex === 9 && mars.houseOccupied === 7) cancellations.push("Mars exalted in Capricorn in 7th house cancels Kuja dosha.");
+      if ([4, 8].includes(mars.signIndex) && mars.houseOccupied === 8) cancellations.push("Mars in Leo/Sagittarius in 8th house cancels Kuja dosha.");
+      if ([10, 11].includes(mars.signIndex) && mars.houseOccupied === 12) cancellations.push("Mars in Aquarius/Pisces in 12th house cancels Kuja dosha.");
+      if (jupiter && jupiter.houseOccupied === mars.houseOccupied) cancellations.push("Mars conjoined with Jupiter neutralizes Kuja dosha.");
+      if (moon && moon.houseOccupied === mars.houseOccupied) cancellations.push("Mars-Moon conjunction forms Chandra-Mangala yoga cancelling dosha.");
+      if (jupiter && (mars.houseOccupied - jupiter.houseOccupied + 12) % 12 + 1 === 7) cancellations.push("Jupiter aspects Mars directly, mitigating Kuja dosha.");
+      if (saturn && mars.houseOccupied === saturn.houseOccupied) cancellations.push("Mars-Saturn conjunction alters malefic expression.");
+    }
+    const isCancelled = cancellations.length > 0;
+    doshas.push({
+      name: "Manglik (Kuja) Dosha",
+      hasDosha: hasManglik,
+      severity: !hasManglik ? "None" : isCancelled ? "Mild" : isFromLagna && isFromMoon ? "Severe" : "Moderate",
+      isCancelled,
+      cancellationReasons: cancellations,
+      details: hasManglik ? `Mars occupies house ${mars.houseOccupied} from Lagna, ${marsFromMoon} from Moon, ${marsFromVenus} from Venus.` : "Mars is placed in auspicious houses, no Manglik dosha."
+    });
+  }
+  if (rahu && ketu) {
+    const rahuLon = rahu.longitude;
+    const ketuLon = ketu.longitude;
+    const sevenPlanets = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"].map((name) => getP(name)).filter(Boolean);
+    let sideA = 0;
+    let sideB = 0;
+    for (const p of sevenPlanets) {
+      const distFromRahu = (p.longitude - rahuLon + 360) % 360;
+      if (distFromRahu > 0 && distFromRahu < 180) {
+        sideA++;
+      } else {
+        sideB++;
+      }
+    }
+    const isFullKaalSarp = sideA === 7 || sideB === 7;
+    const isPartialKaalSarp = !isFullKaalSarp && (sideA === 6 || sideB === 6);
+    const kaalSarpNames = [
+      "Anant",
+      "Kulik",
+      "Vasuki",
+      "Shankhapal",
+      "Padma",
+      "Mahapadma",
+      "Takshak",
+      "Karkotak",
+      "Shankhachood",
+      "Ghatak",
+      "Vishdhar",
+      "Sheshnag"
+    ];
+    const typeName = kaalSarpNames[rahu.houseOccupied - 1] || "Anant";
+    const cancellations = [];
+    if (jupiter && isKendra(jupiter.houseOccupied)) {
+      cancellations.push("Strong Jupiter in Kendra mitigates Kaal Sarp effects.");
+    }
+    doshas.push({
+      name: `Kaal Sarp Dosha (${typeName})`,
+      hasDosha: isFullKaalSarp || isPartialKaalSarp,
+      severity: isFullKaalSarp ? cancellations.length > 0 ? "Moderate" : "Severe" : isPartialKaalSarp ? "Mild" : "None",
+      isCancelled: cancellations.length > 0,
+      cancellationReasons: cancellations,
+      details: isFullKaalSarp ? `Full ${typeName} Kaal Sarp Yoga with all 7 planets hemmed between Rahu (House ${rahu.houseOccupied}) and Ketu (House ${ketu.houseOccupied}).` : isPartialKaalSarp ? `Partial (Anshik) Kaal Sarp with 6 planets hemmed.` : "Planets break Rahu-Ketu axis, no Kaal Sarp dosha."
+    });
+  }
+  if (jupiter && rahu) {
+    const isChandal = jupiter.houseOccupied === rahu.houseOccupied || (rahu.houseOccupied - jupiter.houseOccupied + 12) % 12 + 1 === 7;
+    doshas.push({
+      name: "Guru Chandal Dosha",
+      hasDosha: isChandal,
+      severity: isChandal ? "Moderate" : "None",
+      isCancelled: false,
+      cancellationReasons: [],
+      details: isChandal ? `Jupiter and Rahu are in house ${jupiter.houseOccupied}, clouding judgment and ethics.` : "Jupiter is free from Rahu affliction."
+    });
+  }
+  if (sun && (rahu || ketu || saturn)) {
+    const isPitra = rahu && sun.houseOccupied === rahu.houseOccupied || ketu && sun.houseOccupied === ketu.houseOccupied || saturn && sun.houseOccupied === saturn.houseOccupied && [1, 9].includes(sun.houseOccupied);
+    doshas.push({
+      name: "Pitra Dosha",
+      hasDosha: !!isPitra,
+      severity: isPitra ? "Moderate" : "None",
+      isCancelled: false,
+      cancellationReasons: [],
+      details: isPitra ? `Sun (Atmakaraka/father) afflicted by Rahu/Ketu/Saturn in key house ${sun.houseOccupied}.` : "Sun is unafflicted by nodal nodes in foundational houses."
+    });
+  }
+  return doshas;
+}
+function evaluateSadeSati(moonSignIndex, currentSaturnSignIndex) {
+  const saturnFromMoon = (currentSaturnSignIndex - moonSignIndex + 12) % 12 + 1;
+  let isSadeSatiActive = false;
+  let phase = "Inactive";
+  let isDhaiyaActive = false;
+  let dhaiyaType = "None";
+  let description = "Saturn is in a neutral transit house from natal Moon.";
+  if (saturnFromMoon === 12) {
+    isSadeSatiActive = true;
+    phase = "1st Phase (Rising)";
+    description = "Saturn is transiting 12th from natal Moon (First Phase of Sade Sati - mental stress, expenses).";
+  } else if (saturnFromMoon === 1) {
+    isSadeSatiActive = true;
+    phase = "2nd Phase (Peak)";
+    description = "Saturn is transiting natal Moon sign (Peak Phase of Sade Sati - intense transformation and pressure).";
+  } else if (saturnFromMoon === 2) {
+    isSadeSatiActive = true;
+    phase = "3rd Phase (Setting)";
+    description = "Saturn is transiting 2nd from natal Moon (Setting Phase of Sade Sati - settling of affairs, financial resolution).";
+  } else if (saturnFromMoon === 4) {
+    isDhaiyaActive = true;
+    dhaiyaType = "Kantaka Shani (4th House)";
+    description = "Saturn is transiting 4th from Moon (Kantaka Shani - domestic instability, career pressure).";
+  } else if (saturnFromMoon === 8) {
+    isDhaiyaActive = true;
+    dhaiyaType = "Ashtama Shani (8th House)";
+    description = "Saturn is transiting 8th from Moon (Ashtama Shani - health vulnerabilities, unexpected hurdles).";
+  }
+  return {
+    isSadeSatiActive,
+    phase,
+    isDhaiyaActive,
+    dhaiyaType,
+    saturnSignIndex: currentSaturnSignIndex,
+    moonSignIndex,
+    description
+  };
+}
+var NAKSHATRA_YONI = [
+  "Horse",
+  "Elephant",
+  "Sheep",
+  "Serpent",
+  "Serpent",
+  "Dog",
+  "Cat",
+  "Sheep",
+  "Cat",
+  "Rat",
+  "Rat",
+  "Cow",
+  "Buffalo",
+  "Tiger",
+  "Buffalo",
+  "Tiger",
+  "Deer",
+  "Deer",
+  "Dog",
+  "Monkey",
+  "Mongoose",
+  "Monkey",
+  "Lion",
+  "Horse",
+  "Lion",
+  "Cow",
+  "Elephant"
+];
+var NAKSHATRA_NADI = [
+  0,
+  1,
+  2,
+  2,
+  1,
+  0,
+  0,
+  1,
+  2,
+  0,
+  1,
+  2,
+  2,
+  1,
+  0,
+  0,
+  1,
+  2,
+  0,
+  1,
+  2,
+  2,
+  1,
+  0,
+  0,
+  1,
+  2
+];
+var NAKSHATRA_GANA = [
+  0,
+  1,
+  2,
+  1,
+  0,
+  1,
+  0,
+  0,
+  2,
+  2,
+  1,
+  1,
+  0,
+  2,
+  0,
+  2,
+  0,
+  2,
+  2,
+  1,
+  1,
+  0,
+  2,
+  2,
+  1,
+  1,
+  0
+];
+function calculateKundliMilan(groomMoonLon, brideMoonLon) {
+  const nakSpan = 360 / 27;
+  const groomNak = Math.floor((groomMoonLon % 360 + 360) % 360 / nakSpan);
+  const brideNak = Math.floor((brideMoonLon % 360 + 360) % 360 / nakSpan);
+  const groomSign = Math.floor((groomMoonLon % 360 + 360) % 360 / 30);
+  const brideSign = Math.floor((brideMoonLon % 360 + 360) % 360 / 30);
+  const kootas = [];
+  const getVarnaRank = (s) => [3, 7, 11].includes(s) ? 4 : [0, 4, 8].includes(s) ? 3 : [1, 5, 9].includes(s) ? 2 : 1;
+  const gVarna = getVarnaRank(groomSign);
+  const bVarna = getVarnaRank(brideSign);
+  const varnaScore = gVarna >= bVarna ? 1 : 0;
+  kootas.push({ koota: "Varna", obtainedPoints: varnaScore, maxPoints: 1, description: "Spiritual inclination & ego compatibility." });
+  const vashyaScore = groomSign === brideSign ? 2 : [0, 4, 8].includes(groomSign) && [0, 4, 8].includes(brideSign) ? 2 : 1;
+  kootas.push({ koota: "Vashya", obtainedPoints: vashyaScore, maxPoints: 2, description: "Mutual attraction & dominion." });
+  const distGtoB = (brideNak - groomNak + 27) % 9 + 1;
+  const distBtoG = (groomNak - brideNak + 27) % 9 + 1;
+  const badTaras = [3, 5, 7];
+  const taraScore = !badTaras.includes(distGtoB) && !badTaras.includes(distBtoG) ? 3 : !badTaras.includes(distGtoB) || !badTaras.includes(distBtoG) ? 1.5 : 0;
+  kootas.push({ koota: "Tara", obtainedPoints: taraScore, maxPoints: 3, description: "Destiny, health, and mutual longevity." });
+  const gYoni = NAKSHATRA_YONI[groomNak];
+  const bYoni = NAKSHATRA_YONI[brideNak];
+  let yoniScore = 2;
+  if (gYoni === bYoni) yoniScore = 4;
+  else {
+    const enemyPairs = [
+      ["Cow", "Tiger"],
+      ["Elephant", "Lion"],
+      ["Horse", "Buffalo"],
+      ["Dog", "Deer"],
+      ["Cat", "Rat"],
+      ["Serpent", "Mongoose"],
+      ["Monkey", "Sheep"]
+    ];
+    const isEnemy = enemyPairs.some(([y1, y2]) => y1 === gYoni && y2 === bYoni || y2 === gYoni && y1 === bYoni);
+    if (isEnemy) yoniScore = 0;
+    else yoniScore = 2;
+  }
+  kootas.push({ koota: "Yoni", obtainedPoints: yoniScore, maxPoints: 4, description: "Biological & intimate compatibility." });
+  const gLord = SIGN_LORDS[groomSign];
+  const bLord = SIGN_LORDS[brideSign];
+  let maitriScore = 3;
+  if (gLord === bLord) maitriScore = 5;
+  kootas.push({ koota: "Graha Maitri", obtainedPoints: maitriScore, maxPoints: 5, description: "Psychological friendship & worldview." });
+  const gGana = NAKSHATRA_GANA[groomNak];
+  const bGana = NAKSHATRA_GANA[brideNak];
+  let ganaScore = 0;
+  if (gGana === bGana) ganaScore = 6;
+  else if (gGana === 0 && bGana === 1 || gGana === 1 && bGana === 0) ganaScore = 5;
+  else if (gGana === 0 && bGana === 2) ganaScore = 1;
+  else ganaScore = 0;
+  kootas.push({ koota: "Gana", obtainedPoints: ganaScore, maxPoints: 6, description: "Temperament and behavioral compatibility." });
+  const signDistance = (brideSign - groomSign + 12) % 12 + 1;
+  let bhakootScore = 7;
+  let isBhakootDoshaCancelled = false;
+  if ([2, 12, 6, 8, 5, 9].includes(signDistance)) {
+    if (gLord === bLord) {
+      isBhakootDoshaCancelled = true;
+      bhakootScore = 7;
+    } else {
+      bhakootScore = 0;
+    }
+  }
+  kootas.push({ koota: "Bhakoot", obtainedPoints: bhakootScore, maxPoints: 7, description: "Family welfare, progeny, and economic harmony." });
+  const gNadi = NAKSHATRA_NADI[groomNak];
+  const bNadi = NAKSHATRA_NADI[brideNak];
+  let nadiScore = 8;
+  let isNadiDoshaCancelled = false;
+  if (gNadi === bNadi) {
+    if (groomSign !== brideSign) {
+      isNadiDoshaCancelled = true;
+      nadiScore = 8;
+    } else {
+      nadiScore = 0;
+    }
+  }
+  kootas.push({ koota: "Nadi", obtainedPoints: nadiScore, maxPoints: 8, description: "Genetic health, nervous constitution, and offspring longevity." });
+  const totalScore = kootas.reduce((acc, k) => acc + k.obtainedPoints, 0);
+  let recommendation = "Not Recommended";
+  if (totalScore >= 28) recommendation = "Excellent";
+  else if (totalScore >= 21) recommendation = "Good";
+  else if (totalScore >= 18) recommendation = "Average";
+  return {
+    totalScore,
+    maxScore: 36,
+    kootas,
+    isCompatible: totalScore >= 18,
+    recommendation,
+    isBhakootDoshaCancelled,
+    isNadiDoshaCancelled
+  };
+}
+var KP_VIMSHOTTARI_YEARS = {
+  Ketu: 7,
+  Venus: 20,
+  Sun: 6,
+  Moon: 10,
+  Mars: 7,
+  Rahu: 18,
+  Jupiter: 16,
+  Saturn: 19,
+  Mercury: 17
+};
+var KP_LORDS_ORDER = ["Ketu", "Venus", "Sun", "Moon", "Mars", "Rahu", "Jupiter", "Saturn", "Mercury"];
+function calculateKPSubLord(longitude) {
+  const normLon = (longitude % 360 + 360) % 360;
+  const signIndex = Math.floor(normLon / 30);
+  const signLord = SIGN_LORDS[signIndex];
+  const nakSpan = 360 / 27;
+  const nakIndex = Math.floor(normLon / nakSpan);
+  const starLord = KP_LORDS_ORDER[nakIndex % 9];
+  const arcInNak = normLon - nakIndex * nakSpan;
+  const starLordIndex = KP_LORDS_ORDER.indexOf(starLord);
+  let accumulatedMinutes = 0;
+  const arcInNakMinutes = arcInNak * 60;
+  let subLord = starLord;
+  let subLordIndex = starLordIndex;
+  let subStartMin = 0;
+  let subSpanMin = 0;
+  for (let i = 0; i < 9; i++) {
+    const lIdx = (starLordIndex + i) % 9;
+    const lName = KP_LORDS_ORDER[lIdx];
+    const spanMin = KP_VIMSHOTTARI_YEARS[lName] / 120 * 800;
+    if (arcInNakMinutes >= accumulatedMinutes && arcInNakMinutes < accumulatedMinutes + spanMin) {
+      subLord = lName;
+      subLordIndex = lIdx;
+      subStartMin = accumulatedMinutes;
+      subSpanMin = spanMin;
+      break;
+    }
+    accumulatedMinutes += spanMin;
+  }
+  const arcInSubMin = arcInNakMinutes - subStartMin;
+  let accumulatedSSMin = 0;
+  let subSubLord = subLord;
+  for (let j = 0; j < 9; j++) {
+    const sslIdx = (subLordIndex + j) % 9;
+    const sslName = KP_LORDS_ORDER[sslIdx];
+    const ssSpanMin = KP_VIMSHOTTARI_YEARS[sslName] / 120 * subSpanMin;
+    if (arcInSubMin >= accumulatedSSMin && arcInSubMin < accumulatedSSMin + ssSpanMin) {
+      subSubLord = sslName;
+      break;
+    }
+    accumulatedSSMin += ssSpanMin;
+  }
+  return { signLord, starLord, subLord, subSubLord };
+}
+function calculateJaiminiDetails(natalChart) {
+  const physicalPlanets = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"].map((name) => natalChart.planets.find((p) => p.name === name)).filter(Boolean);
+  physicalPlanets.sort((a, b) => b.degreeInSign - a.degreeInSign);
+  const karakaNames = [
+    "Atmakaraka",
+    "Amatyakaraka",
+    "Bhratrikaraka",
+    "Matrikaraka",
+    "Putrakaraka",
+    "Gnatikaraka",
+    "Darakaraka"
+  ];
+  const karakaSymbols = ["AK", "AmK", "BK", "MK", "PK", "GK", "DK"];
+  const karakas = physicalPlanets.map((p, idx) => ({
+    karakaName: karakaNames[idx],
+    symbol: karakaSymbols[idx],
+    planetName: p.name,
+    degreeInSign: p.degreeInSign
+  }));
+  const arudhaPadas = [];
+  const lagnaSign = natalChart.ascendant.signIndex;
+  for (let h = 1; h <= 12; h++) {
+    const houseSign = (lagnaSign + h - 1) % 12;
+    const lordName = SIGN_LORDS[houseSign];
+    const lordPlanet = natalChart.planets.find((p) => p.name === lordName);
+    const lordSign = lordPlanet ? lordPlanet.signIndex : houseSign;
+    const dist = (lordSign - houseSign + 12) % 12 + 1;
+    let rawPadaSign = (lordSign + dist - 1) % 12;
+    const padaFromHouse = (rawPadaSign - houseSign + 12) % 12 + 1;
+    if (padaFromHouse === 1 || padaFromHouse === 7) {
+      rawPadaSign = (rawPadaSign + 9) % 12;
+    }
+    const code = h === 1 ? "AL" : h === 12 ? "UL" : `A${h}`;
+    arudhaPadas.push({
+      houseNumber: h,
+      padaCode: code,
+      padaSignIndex: rawPadaSign,
+      padaSignName: SIGN_NAMES[rawPadaSign]
+    });
+  }
+  return {
+    karakas,
+    arudhaPadas,
+    arudhaLagna: arudhaPadas[0],
+    upapadaLagna: arudhaPadas[11]
+  };
+}
+function calculateVarshphal(natalChart, completedYears) {
+  const sun = natalChart.planets.find((p) => p.name === "Sun");
+  const natalSunLon = sun.longitude;
+  let currentEstDate = new Date(natalChart.birthDate.getTime() + completedYears * 365.2425 * 86400 * 1e3);
+  for (let iter = 0; iter < 5; iter++) {
+    const jd_ut = currentEstDate.getTime() / 864e5 + 24405875e-1;
+    const pos = drik_calc_ut(jd_ut, SE_SUN);
+    const sunLon = pos[0];
+    const sunDailySpeed = pos[3] || 0.9856;
+    let diff = (natalSunLon - sunLon + 540) % 360 - 180;
+    const daysAdjust = diff / sunDailySpeed;
+    currentEstDate = new Date(currentEstDate.getTime() + daysAdjust * 86400 * 1e3);
+    if (Math.abs(daysAdjust) < 1e-5) break;
+  }
+  const munthaSignIndex = (natalChart.ascendant.signIndex + completedYears) % 12;
+  const moon = natalChart.planets.find((p) => p.name === "Moon");
+  const ascLon = natalChart.ascendant.longitude;
+  const isDayBirth = natalChart.birthDate.getUTCHours() >= 6 && natalChart.birthDate.getUTCHours() < 18;
+  const punyaSaham = isDayBirth ? (moon.longitude - sun.longitude + ascLon + 720) % 360 : (sun.longitude - moon.longitude + ascLon + 720) % 360;
+  const vidyaSaham = isDayBirth ? (sun.longitude - moon.longitude + ascLon + 720) % 360 : (moon.longitude - sun.longitude + ascLon + 720) % 360;
+  return {
+    targetAge: completedYears,
+    varshpraveshDate: currentEstDate,
+    munthaSignIndex,
+    munthaSignName: SIGN_NAMES[munthaSignIndex],
+    punyaSahamLongitude: punyaSaham,
+    vidyaSahamLongitude: vidyaSaham
+  };
+}
+function evaluateLalKitab(natalChart) {
+  const occupiedHouses = new Set(natalChart.planets.map((p) => p.houseOccupied));
+  const sleepingHouses = [];
+  for (let h = 1; h <= 12; h++) {
+    if (!occupiedHouses.has(h)) sleepingHouses.push(h);
+  }
+  const masnooi = [
+    { pair: "Sun + Saturn", represents: "Ketu" },
+    { pair: "Sun + Venus", represents: "Mercury" },
+    { pair: "Mars + Mercury", represents: "Ketu" },
+    { pair: "Venus + Jupiter", represents: "Sun" },
+    { pair: "Jupiter + Rahu", represents: "Mercury" }
+  ];
+  const getH = (name) => natalChart.planets.find((p) => p.name === name)?.houseOccupied;
+  const isDharmiTeva = getH("Saturn") === 11 || getH("Jupiter") === 10 || getH("Moon") === 4;
+  return {
+    sleepingHouses,
+    artificialMasnooiPlanets: masnooi,
+    isDharmiTeva: !!isDharmiTeva
+  };
+}
+function evaluatePanchPakshi(moonLongitude, queryHour = 12) {
+  const nakSpan = 360 / 27;
+  const nakIndex = Math.floor((moonLongitude % 360 + 360) % 360 / nakSpan);
+  const birds = ["Vulture", "Owl", "Crow", "Cock", "Peacock"];
+  const birthBird = birds[nakIndex % 5];
+  const activities = ["Eating", "Walking", "Ruling", "Sleeping", "Dying"];
+  const actIndex = (Math.floor(queryHour / 2.4) + nakIndex % 5) % 5;
+  return {
+    birthBird,
+    currentActivity: activities[actIndex]
+  };
+}
 export {
+  ASHTAKAVARGA_CONTRIBUTORS,
+  ASHTAKAVARGA_GRAHAS,
+  ASHTOTTARI_LORDS,
+  ASHTOTTARI_YEARS,
+  EXALTATION_SIGNS,
+  EXPECTED_BAV_TOTALS,
   EXTENDED_INDIAN_CITIES,
   EngineLogger,
   FESTVALS_PRESETS,
+  GRAHA_PINDA_MULTIPLIERS,
   INDIAN_CITIES,
+  KAKSHYA_LORDS,
   KARANA_DETAILS,
+  KP_LORDS_ORDER,
+  KP_VIMSHOTTARI_YEARS,
   MONTHS_ENGLISH_HINDI,
+  MS_PER_YEAR,
   NAKSHATRA_DETAILS,
+  NAKSHATRA_LORDS,
+  NAKSHATRA_NAMES,
+  NAKSHATRA_TO_VIMSHOTTARI_LORD,
+  OWN_SIGNS,
+  PARASHARA_BAV_RULES,
   PLANET_MAP,
+  RASHI_PINDA_MULTIPLIERS,
   SEFLG_SIDEREAL,
   SEFLG_SPEED,
   SEFLG_SWIEPH,
@@ -7799,23 +10696,54 @@ export {
   SE_SUN,
   SE_TRUE_NODE,
   SE_VENUS,
+  SHASHTIAMSHA_DATA,
+  SIGN_LORDS,
   SIGN_MAP,
+  SIGN_NAMES,
   TITHI_DETAILS,
+  TOTAL_ASHTOTTARI_YEARS,
+  TOTAL_VIMSHOTTARI_YEARS,
+  TOTAL_YOGINI_YEARS,
   TRANSIT_PREDICTIONS,
+  VIMSHOTTARI_LORDS,
+  VIMSHOTTARI_YEARS,
   YOGA_DETAILS,
+  YOGINI_DETAILS,
+  YOGINI_NAMES,
+  applyEkadhipatyaShodhana,
+  applyTrikonaShodhana,
   astronomicalEngine,
   calculateAgniVaas,
+  calculateAllDashas,
+  calculateAllVargasForPlanet,
+  calculateAshtakavarga,
+  calculateAshtottariDasha,
+  calculateCharaDasha,
   calculateDagdaTithi,
+  calculateDrishtiAndConjunctions,
   calculateFutureTransits,
   calculateIshtakala,
+  calculateJaiminiDetails,
+  calculateKPSubLord,
+  calculateKundliMilan,
   calculateMoonTimesCore,
+  calculateNatalChart,
   calculatePanchangPositionsCore,
   calculatePaya,
   calculatePushkarYog,
+  calculateSAV,
+  calculateShadbala,
   calculateShivaVaas,
+  calculateShodashvarga,
+  calculateShodhyaPinda,
+  calculateSingleBAV,
   calculateSolarTimes,
   calculateSolarTimesCore,
   calculateTimezoneOffset,
+  calculateVarga,
+  calculateVarshphal,
+  calculateVimshottariBalance,
+  calculateYoginiDasha,
   checkMuhurats,
   clearPanchangCache,
   detectDeviceLocation,
@@ -7826,10 +10754,22 @@ export {
   drik_revjul,
   drik_rise_trans,
   drik_set_sid_mode,
+  evaluateKakshyaTransit,
+  evaluateLalKitab,
+  evaluateMaleficDoshas,
+  evaluatePanchPakshi,
+  evaluateParashariYogas,
+  evaluateSadeSati,
   extendInitializationTimeout,
   findBoundaryCrossing,
   findClosestCity,
+  findCurrentVimshottari,
   findNewMoonJd,
+  formatDegrees,
+  generateEastIndianChart,
+  generateNorthIndianChart,
+  generateSouthIndianChart,
+  generateVimshottariTimeline,
   getChoghadiyaPresentationData,
   getEngineProgressStage,
   getFestivalsForDay,
@@ -7837,14 +10777,18 @@ export {
   getFestivalsForYear,
   getLastDiagnosticInfo,
   getMuhuratsForPanchang,
+  getNakshatraInfo,
   getPanchangForDate,
   getPanchangForFestivalDay,
   getRetryCount,
   getUpcomingTransits,
+  isDusthana,
   isEngineCalculating,
+  isKendra,
   isMaxRetriesReached,
   isReady,
   isTimeoutTriggered,
+  isTrikona,
   registerActiveExpectedKeys,
   registerEngineListener,
   registerPanchangCacheClearer,

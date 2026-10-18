@@ -29,7 +29,15 @@
     "audit:phase2": "node tests/audit_phase2_positions.mjs",
     "audit:phase3": "node tests/audit_phase3_riseset_bhavas.mjs",
     "audit:phase4": "node tests/audit_phase4_panchang.mjs",
-    "audit:phase6": "node tests/audit_phase6_stress.mjs"
+    "audit:phase6": "node tests/audit_phase6_stress.mjs",
+    "audit:kundli": "node tests/audit_module1_charts.mjs",
+    "audit:vargas": "node tests/audit_module2_vargas.mjs",
+    "audit:shadbala": "node tests/audit_module3_shadbala.mjs",
+    "audit:ashtakavarga": "node tests/audit_module4_ashtakavarga.mjs",
+    "audit:dashas": "node tests/audit_module5_dashas.mjs",
+    "audit:predictive": "node tests/audit_module6_advanced.mjs",
+    "audit:stress": "node tests/audit_final_stress_suite.mjs",
+    "audit:all": "npm run audit:kundli && npm run audit:vargas && npm run audit:shadbala && npm run audit:ashtakavarga && npm run audit:dashas && npm run audit:predictive && npm run audit:stress"
   },
   "keywords": [
     "panchang",
