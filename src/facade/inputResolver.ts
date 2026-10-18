@@ -66,7 +66,7 @@ function validateCalendarDate(year: number, month: number, day: number): void {
     throw new InvalidDateError(`Invalid calendar date: ${year}-${month}-${day}.`);
   }
   const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 31, 30, 31, 30, 31];
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   if (!Number.isInteger(day) || day < 1 || day > days[month - 1]) {
     throw new InvalidDateError(`Invalid calendar date: ${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}.`);
   }
