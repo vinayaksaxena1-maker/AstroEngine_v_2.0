@@ -153,14 +153,14 @@ export function findBhavaChalitHouse(longitude: number, cusps: BhavaCuspDetail[]
  */
 export function calculateCompleteHoroscope(input: HoroscopeInput): CompleteHoroscopeResult {
   // 1. Resolve and validate input coordinates, timestamps, and metadata
-  const { resolvedDate, metadata, houseSystem } = resolveHoroscopeInput(input);
+  const { resolvedDate, metadata, houseSystem, ayanamshaSystem } = resolveHoroscopeInput(input);
 
   // 2. Compute Natal Horizons, Cusps, and Graha Positions
   const chart: NatalChartData = calculateNatalChart(
     resolvedDate,
     metadata.coordinates.lat,
     metadata.coordinates.lng,
-    { houseSystem }
+    { houseSystem, ayanamshaSystem }
   );
 
   // 3. Classify dual house placements: rashiHouse vs bhavaChalitHouse
