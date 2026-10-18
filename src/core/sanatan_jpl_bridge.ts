@@ -121,6 +121,22 @@ export function drik_get_ayanamsa_ut(jd_ut: number, mode: number = SE_SIDM_LAHIR
 export const swe_get_ayanamsa_ut = drik_get_ayanamsa_ut;
 export const swe_get_ayanamsa = drik_get_ayanamsa_ut;
 
+export type AyanamshaSystem = 'Lahiri' | 'KP' | 'Raman';
+
+/** Returns the ayanamsha offset used by every natal-chart calculation path. */
+export function getAyanamshaForSystem(jd_ut: number, system: AyanamshaSystem = 'Lahiri'): number {
+  const lahiri = drik_get_ayanamsa_ut(jd_ut);
+  switch (system) {
+    case 'Lahiri': return lahiri;
+    case 'KP': return lahiri - (5 + 54 / 60) / 60;
+    case 'Raman': {
+      const T = (jd_ut - 2451545.0) / 36525;
+      return 21.01524 + 1.39811 * T;
+    }
+    default: throw new Error(`Unsupported ayanamsha system: ${system}`);
+  }
+}
+
 /**
  * Transform Apparent Equatorial coordinates (RA, Dec) to True Ecliptic of Date (Lambda, Beta)
  */
