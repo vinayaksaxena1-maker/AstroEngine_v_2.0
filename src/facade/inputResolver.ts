@@ -43,8 +43,8 @@ export interface HoroscopeInput {
 }
 
 export interface EngineMetadata {
-  engineName: 'Sanatan Astro Engine';
-  engineVersion: '1.1.1';
+  engineName: 'AstroEngine_v_2.0';
+  engineVersion: '2.0.0';
   calculatedAt: string;          // ISO UTC of calculation runtime
   resolvedUtcInstant: string;    // Exact birth instant in UTC
   julianDayUT: number;
@@ -260,8 +260,8 @@ export function resolveHoroscopeInput(input: HoroscopeInput): ResolvedInputResul
   }
 
   const metadata: EngineMetadata = {
-    engineName: 'Sanatan Astro Engine',
-    engineVersion: '1.1.1',
+    engineName: 'AstroEngine_v_2.0',
+    engineVersion: '2.0.0',
     calculatedAt: new Date().toISOString(),
     resolvedUtcInstant: resolvedDate.toISOString(),
     julianDayUT: jd_ut,

@@ -1,6 +1,6 @@
-# Sanatan Astro Engine 🕉️⏱️
+# AstroEngine v2.0 (AstroEngine_v_2.0) 🕉️⏱️
 
-> **100% Proprietary High-Precision Vedic Panchang, Astronomical & Hindu Festival Engine**  
+> **100% Proprietary High-Precision Vedic Astrology, Horoscope, Panchang & Astronomical Calculation Engine**  
 > Powered by JPL-calibrated planetary models and the MIT-licensed `astronomy-engine`. 100% free of copyleft (AGPLv3 / Swiss Ephemeris) code, zero WebAssembly overhead, sub-millisecond synchronous execution, and designed for closed-source commercial applications across web, mobile, smartwatches, and servers.
 
 ---
@@ -31,7 +31,7 @@ For complete integration documentation, timezone best practices, data dictionary
 ## 📦 Installation
 
 ```bash
-npm install github:vinayaksaxena1-maker/Sanatan_Watch_AstroEngine
+npm install github:vinayaksaxena1-maker/AstroEngine_v_2.0
 ```
 
 ---

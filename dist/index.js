@@ -10847,8 +10847,8 @@ function resolveHoroscopeInput(input) {
     throw new InvalidDateError(`Unsupported house system "${houseSystem}".`);
   }
   const metadata = {
-    engineName: "Sanatan Astro Engine",
-    engineVersion: "1.1.1",
+    engineName: "AstroEngine_v_2.0",
+    engineVersion: "2.0.0",
     calculatedAt: (/* @__PURE__ */ new Date()).toISOString(),
     resolvedUtcInstant: resolvedDate.toISOString(),
     julianDayUT: jd_ut,
@@ -11672,9 +11672,9 @@ export {
 
  */
 /**
- * Sanatan Astro Engine
- * High-precision Vedic Panchang, Astronomical, and Hindu Festival Calculation Engine
- * Powered by 100% Closed-Source Proprietary Sanatan JPL Bridge & MIT astronomy-engine.
+ * AstroEngine v2.0 (AstroEngine_v_2.0)
+ * High-precision Vedic Panchang, Horoscope, Astronomical, and Hindu Festival Engine
+ * Powered by Proprietary JPL Bridge & MIT astronomy-engine.
  *
  * @license UNLICENSED (Proprietary / All Rights Reserved)
  * @author Vinayak Saxena

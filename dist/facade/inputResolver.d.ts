@@ -25,8 +25,8 @@ export interface HoroscopeInput {
     ayanamshaSystem?: 'Lahiri' | 'KP' | 'Raman';
 }
 export interface EngineMetadata {
-    engineName: 'Sanatan Astro Engine';
-    engineVersion: '1.1.1';
+    engineName: 'AstroEngine_v_2.0';
+    engineVersion: '2.0.0';
     calculatedAt: string;
     resolvedUtcInstant: string;
     julianDayUT: number;

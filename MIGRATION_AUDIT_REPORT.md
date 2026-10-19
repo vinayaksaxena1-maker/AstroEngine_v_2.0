@@ -1,16 +1,16 @@
-# Sanatan_Watch_AstroEngine Migration Audit Report
-**AGPLv3 Swiss Ephemeris -> 100% Proprietary MIT/JPL Sanatan Engine**
+# AstroEngine_v_2.0 Migration Audit Report
+**AGPLv3 Swiss Ephemeris -> 100% Proprietary MIT/JPL AstroEngine v2.0**
 
 **Audit Execution Date:** 2026-10-18  
 **Author:** Antigravity (Google DeepMind Agentic Coding Architecture)  
-**Target Repository:** `Sanatan_Watch_AstroEngine` (Vinayak Saxena)  
+**Target Repository:** `AstroEngine_v_2.0` (Vinayak Saxena)  
 **Status:** **100% CERTIFIED & PASSED**
 
 ---
 
 ## 1. Executive Summary
 
-The `Sanatan_Watch_AstroEngine` repository has been migrated from the copyleft AGPLv3-licensed Swiss Ephemeris (`libswe`, `swisseph-wasm`, and 2.3+ MB base64 `.se1` ephemeris assets) to a **100% Closed-Source Proprietary Vedic Astrology & Panchang Engine** powered by `astronomy-engine` (MIT License) and calibrated JPL planetary models.
+The `AstroEngine_v_2.0` repository has been migrated from the copyleft AGPLv3-licensed Swiss Ephemeris (`libswe`, `swisseph-wasm`, and 2.3+ MB base64 `.se1` ephemeris assets) to a **100% Closed-Source Proprietary Vedic Astrology & Panchang Engine** powered by `astronomy-engine` (MIT License) and calibrated JPL planetary models.
 
 ### Key Migration Achievements:
 1. **Zero Copyleft / 100% Clean-Room Proprietary Architecture:**
