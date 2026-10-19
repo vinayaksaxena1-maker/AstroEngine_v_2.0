@@ -31,6 +31,10 @@ export type {
   MoonTimes,
   PlanetPosition,
   PanchangPositions,
+  AscendantDetail,
+  BhavaCuspDetail,
+  NatalPlanetDetail,
+  NatalChartData,
   AstronomicalEngine
 } from './astronomicalEngine';
 

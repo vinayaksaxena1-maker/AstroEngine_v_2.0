@@ -449,13 +449,56 @@ export const Grahas = [
   { id: SE_MEAN_NODE, name: 'Rahu', hindiName: 'राहु' }
 ];
 
-export function calculateTimezoneOffset(lat: number, lon: number): number {
-  if (lat >= 8.0 && lat <= 37.0 && lon >= 68.0 && lon <= 97.0) {
-    return 5.5; // IST
+export function calculateTimezoneOffset(
+  lat: number,
+  lon: number,
+  ianaTimezone?: string,
+  date: Date = new Date()
+): number {
+  // 1. Explicit IANA timezone priority with exact DST & historical wall-clock offset
+  if (ianaTimezone && typeof Intl !== 'undefined') {
+    try {
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: ianaTimezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      const parts: Record<string, string> = {};
+      for (const p of formatter.formatToParts(date)) {
+        parts[p.type] = p.value;
+      }
+      const hour = Number(parts.hour) === 24 ? 0 : Number(parts.hour);
+      const zonedUtc = Date.UTC(
+        Number(parts.year),
+        Number(parts.month) - 1,
+        Number(parts.day),
+        hour,
+        Number(parts.minute),
+        Number(parts.second)
+      );
+      const diffMs = zonedUtc - date.getTime();
+      return Math.round((diffMs / 3600000) * 100) / 100;
+    } catch {
+      // Fallback to coordinates bounding box
+    }
   }
+
+  // 2. Nepal MUST be checked BEFORE India (Nepal is geographically nested inside the India bounding box)
   if (lat >= 26.0 && lat <= 31.0 && lon >= 80.0 && lon <= 89.0) {
-    return 5.75; // Nepal Standard Time
+    return 5.75; // Nepal Standard Time (NPT)
   }
+
+  // 3. India Bounding Box: Lat 8.0 to 37.0, Lon 68.0 to 97.0
+  if (lat >= 8.0 && lat <= 37.0 && lon >= 68.0 && lon <= 97.0) {
+    return 5.5; // Indian Standard Time (IST)
+  }
+
+  // 4. Default solar longitude approximation rounded to nearest 0.5 hours
   return Math.round(lon / 15 * 2) / 2;
 }
 
@@ -480,12 +523,34 @@ export function findBoundaryCrossing(
   type: 'tithi' | 'nakshatra' | 'yoga' | 'karana',
   targetVal: number
 ): number {
-  let jd = jdMidnight + 0.5;
-  let speed = 12.0;
-  if (type === 'nakshatra') speed = 13.176;
+  let speed = 12.190749;
+  if (type === 'nakshatra') speed = 13.176358;
   if (type === 'yoga') speed = 14.176;
 
-  for (let iter = 0; iter < 12; iter++) {
+  // 1. Initial sample at jdMidnight + 0.5 (local noon) to compute initial angular delta
+  const initialJd = jdMidnight + 0.5;
+  const sun0 = drik_calc_ut(initialJd, SE_SUN);
+  const moon0 = drik_calc_ut(initialJd, SE_MOON);
+  const ayanamsa0 = drik_get_ayanamsa_ut(initialJd);
+
+  let val0 = 0;
+  if (type === 'tithi' || type === 'karana') {
+    val0 = (moon0[0] - sun0[0] + 360) % 360;
+  } else if (type === 'nakshatra') {
+    val0 = (moon0[0] - ayanamsa0 + 360) % 360;
+  } else if (type === 'yoga') {
+    val0 = (moon0[0] - ayanamsa0 + sun0[0] - ayanamsa0 + 720) % 360;
+  }
+
+  // Shortest angular arc [-180, 180]
+  let initialDiff = ((targetVal - val0 + 180) % 360 + 360) % 360 - 180;
+  const approxDays = initialDiff / speed;
+
+  let jd = initialJd + approxDays;
+  const minJd = jd - 1.5;
+  const maxJd = jd + 1.5;
+
+  for (let iter = 0; iter < 16; iter++) {
     const sun = drik_calc_ut(jd, SE_SUN);
     const moon = drik_calc_ut(jd, SE_MOON);
     const ayanamsa = drik_get_ayanamsa_ut(jd);
@@ -507,31 +572,47 @@ export function findBoundaryCrossing(
     let err = targetVal - val;
     err = ((err + 180) % 360 + 360) % 360 - 180;
 
-    if (Math.abs(err) < 0.000005) {
+    // Sub-second precision threshold: 0.000001 days = 0.0864 seconds
+    if (Math.abs(err) < 0.000001) {
       return jd;
     }
-    if (Math.abs(currentSpeed) < 0.0001) break;
-    jd += err / currentSpeed;
+
+    // Safety guard against near-zero derivatives
+    if (Math.abs(currentSpeed) < 0.0001) {
+      currentSpeed = speed;
+    }
+
+    const step = err / currentSpeed;
+    jd += step;
+
+    // Bracket clamping
+    if (jd < minJd) jd = minJd;
+    if (jd > maxJd) jd = maxJd;
   }
   return jd;
 }
 
 export function findNewMoonJd(guessJd: number): number {
   let jd = guessJd;
-  for (let iter = 0; iter < 10; iter++) {
+  const minJd = guessJd - 1.5;
+  const maxJd = guessJd + 1.5;
+
+  for (let iter = 0; iter < 16; iter++) {
     const sun = drik_calc_ut(jd, SE_SUN);
     const moon = drik_calc_ut(jd, SE_MOON);
     const val = (moon[0] - sun[0] + 360) % 360;
-    const currentSpeed = moon[3] - sun[3];
+    let currentSpeed = moon[3] - sun[3];
 
     let err = 0 - val;
     err = ((err + 180) % 360 + 360) % 360 - 180;
 
-    if (Math.abs(err) < 0.000005) {
+    if (Math.abs(err) < 0.000001) {
       return jd;
     }
-    if (Math.abs(currentSpeed) < 0.0001) break;
+    if (Math.abs(currentSpeed) < 0.0001) currentSpeed = 12.19;
     jd += err / currentSpeed;
+    if (jd < minJd) jd = minJd;
+    if (jd > maxJd) jd = maxJd;
   }
   return jd;
 }

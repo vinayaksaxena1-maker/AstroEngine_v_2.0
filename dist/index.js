@@ -2796,12 +2796,42 @@ var Grahas = [
   { id: SE_SATURN, name: "Saturn", hindiName: "\u0936\u0928\u093F" },
   { id: SE_MEAN_NODE, name: "Rahu", hindiName: "\u0930\u093E\u0939\u0941" }
 ];
-function calculateTimezoneOffset(lat, lon) {
-  if (lat >= 8 && lat <= 37 && lon >= 68 && lon <= 97) {
-    return 5.5;
+function calculateTimezoneOffset(lat, lon, ianaTimezone, date = /* @__PURE__ */ new Date()) {
+  if (ianaTimezone && typeof Intl !== "undefined") {
+    try {
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: ianaTimezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+      });
+      const parts = {};
+      for (const p of formatter.formatToParts(date)) {
+        parts[p.type] = p.value;
+      }
+      const hour = Number(parts.hour) === 24 ? 0 : Number(parts.hour);
+      const zonedUtc = Date.UTC(
+        Number(parts.year),
+        Number(parts.month) - 1,
+        Number(parts.day),
+        hour,
+        Number(parts.minute),
+        Number(parts.second)
+      );
+      const diffMs = zonedUtc - date.getTime();
+      return Math.round(diffMs / 36e5 * 100) / 100;
+    } catch {
+    }
   }
   if (lat >= 26 && lat <= 31 && lon >= 80 && lon <= 89) {
     return 5.75;
+  }
+  if (lat >= 8 && lat <= 37 && lon >= 68 && lon <= 97) {
+    return 5.5;
   }
   return Math.round(lon / 15 * 2) / 2;
 }
@@ -2820,11 +2850,27 @@ function formatRawMin(m) {
   return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")} ${ampm}`;
 }
 function findBoundaryCrossing(jdMidnight, type, targetVal) {
-  let jd = jdMidnight + 0.5;
-  let speed = 12;
-  if (type === "nakshatra") speed = 13.176;
+  let speed = 12.190749;
+  if (type === "nakshatra") speed = 13.176358;
   if (type === "yoga") speed = 14.176;
-  for (let iter = 0; iter < 12; iter++) {
+  const initialJd = jdMidnight + 0.5;
+  const sun0 = drik_calc_ut(initialJd, SE_SUN);
+  const moon0 = drik_calc_ut(initialJd, SE_MOON);
+  const ayanamsa0 = drik_get_ayanamsa_ut(initialJd);
+  let val0 = 0;
+  if (type === "tithi" || type === "karana") {
+    val0 = (moon0[0] - sun0[0] + 360) % 360;
+  } else if (type === "nakshatra") {
+    val0 = (moon0[0] - ayanamsa0 + 360) % 360;
+  } else if (type === "yoga") {
+    val0 = (moon0[0] - ayanamsa0 + sun0[0] - ayanamsa0 + 720) % 360;
+  }
+  let initialDiff = ((targetVal - val0 + 180) % 360 + 360) % 360 - 180;
+  const approxDays = initialDiff / speed;
+  let jd = initialJd + approxDays;
+  const minJd = jd - 1.5;
+  const maxJd = jd + 1.5;
+  for (let iter = 0; iter < 16; iter++) {
     const sun = drik_calc_ut(jd, SE_SUN);
     const moon = drik_calc_ut(jd, SE_MOON);
     const ayanamsa = drik_get_ayanamsa_ut(jd);
@@ -2842,28 +2888,37 @@ function findBoundaryCrossing(jdMidnight, type, targetVal) {
     }
     let err = targetVal - val;
     err = ((err + 180) % 360 + 360) % 360 - 180;
-    if (Math.abs(err) < 5e-6) {
+    if (Math.abs(err) < 1e-6) {
       return jd;
     }
-    if (Math.abs(currentSpeed) < 1e-4) break;
-    jd += err / currentSpeed;
+    if (Math.abs(currentSpeed) < 1e-4) {
+      currentSpeed = speed;
+    }
+    const step = err / currentSpeed;
+    jd += step;
+    if (jd < minJd) jd = minJd;
+    if (jd > maxJd) jd = maxJd;
   }
   return jd;
 }
 function findNewMoonJd(guessJd) {
   let jd = guessJd;
-  for (let iter = 0; iter < 10; iter++) {
+  const minJd = guessJd - 1.5;
+  const maxJd = guessJd + 1.5;
+  for (let iter = 0; iter < 16; iter++) {
     const sun = drik_calc_ut(jd, SE_SUN);
     const moon = drik_calc_ut(jd, SE_MOON);
     const val = (moon[0] - sun[0] + 360) % 360;
-    const currentSpeed = moon[3] - sun[3];
+    let currentSpeed = moon[3] - sun[3];
     let err = 0 - val;
     err = ((err + 180) % 360 + 360) % 360 - 180;
-    if (Math.abs(err) < 5e-6) {
+    if (Math.abs(err) < 1e-6) {
       return jd;
     }
-    if (Math.abs(currentSpeed) < 1e-4) break;
+    if (Math.abs(currentSpeed) < 1e-4) currentSpeed = 12.19;
     jd += err / currentSpeed;
+    if (jd < minJd) jd = minJd;
+    if (jd > maxJd) jd = maxJd;
   }
   return jd;
 }
@@ -3033,6 +3088,265 @@ function calculatePanchangPositionsCore(date, offsetHours) {
   };
 }
 
+// src/kundli/houseCusps.ts
+var NAKSHATRA_NAMES = [
+  "Ashwini",
+  "Bharani",
+  "Krittika",
+  "Rohini",
+  "Mrigashira",
+  "Ardra",
+  "Punarvasu",
+  "Pushya",
+  "Ashlesha",
+  "Magha",
+  "Purva Phalguni",
+  "Uttara Phalguni",
+  "Hasta",
+  "Chitra",
+  "Swati",
+  "Vishakha",
+  "Anuradha",
+  "Jyeshtha",
+  "Mula",
+  "Purva Ashadha",
+  "Uttara Ashadha",
+  "Shravana",
+  "Dhanishta",
+  "Shatabhisha",
+  "Purva Bhadrapada",
+  "Uttara Bhadrapada",
+  "Revati"
+];
+var NAKSHATRA_LORDS = [
+  "Ketu",
+  "Venus",
+  "Sun",
+  "Moon",
+  "Mars",
+  "Rahu",
+  "Jupiter",
+  "Saturn",
+  "Mercury",
+  "Ketu",
+  "Venus",
+  "Sun",
+  "Moon",
+  "Mars",
+  "Rahu",
+  "Jupiter",
+  "Saturn",
+  "Mercury",
+  "Ketu",
+  "Venus",
+  "Sun",
+  "Moon",
+  "Mars",
+  "Rahu",
+  "Jupiter",
+  "Saturn",
+  "Mercury"
+];
+var SIGN_LORDS = [
+  "Mars",
+  "Venus",
+  "Mercury",
+  "Moon",
+  "Sun",
+  "Mercury",
+  "Venus",
+  "Mars",
+  "Jupiter",
+  "Saturn",
+  "Saturn",
+  "Jupiter"
+];
+var COMBUSTION_ORBS = {
+  Moon: 12,
+  Mars: 17,
+  Mercury: 14,
+  Jupiter: 11,
+  Venus: 10,
+  Saturn: 15
+};
+function formatDegrees(deg) {
+  const norm = (deg % 360 + 360) % 360;
+  const d = Math.floor(norm);
+  const mFloat = (norm - d) * 60;
+  const m = Math.floor(mFloat);
+  const s = Math.floor((mFloat - m) * 60);
+  return `${d.toString().padStart(2, "0")}\xB0${m.toString().padStart(2, "0")}'${s.toString().padStart(2, "0")}"`;
+}
+function getNakshatraInfo(longitude) {
+  const norm = (longitude % 360 + 360) % 360;
+  const naksSpan = 13.333333333333334;
+  const index = Math.floor(norm / naksSpan) % 27;
+  const rem = norm % naksSpan;
+  const pada = Math.floor(rem / 3.3333333333333335) + 1;
+  return {
+    index,
+    name: NAKSHATRA_NAMES[index],
+    pada: Math.min(4, Math.max(1, pada)),
+    lord: NAKSHATRA_LORDS[index]
+  };
+}
+function calculateNatalChart(birthDate, latitude, longitude, options = {}) {
+  const houseSystem = options.houseSystem || "Sripati";
+  const ayanamshaSystem = options.ayanamshaSystem || "Lahiri";
+  let sysChar = "O";
+  if (houseSystem === "Placidus") sysChar = "P";
+  if (houseSystem === "EqualHouse") sysChar = "E";
+  const jd_ut = birthDate.getTime() / 864e5 + 24405875e-1;
+  const ayanamsa = getAyanamshaForSystem(jd_ut, ayanamshaSystem);
+  const houses = drik_houses(jd_ut, latitude, longitude, sysChar);
+  const siderealAsc = (houses.ascmc[0] - ayanamsa + 360) % 360;
+  const siderealMC = (houses.ascmc[1] - ayanamsa + 360) % 360;
+  const ascSignIdx = Math.floor(siderealAsc / 30);
+  const ascDegInSign = siderealAsc % 30;
+  const ascNaks = getNakshatraInfo(siderealAsc);
+  const rawCusps = [];
+  for (let i = 1; i <= 12; i++) {
+    rawCusps.push((houses.cusps[i] - ayanamsa + 360) % 360);
+  }
+  const cuspDetails = [];
+  for (let i = 0; i < 12; i++) {
+    const mid = rawCusps[i];
+    const prevMid = rawCusps[(i + 11) % 12];
+    const nextMid = rawCusps[(i + 1) % 12];
+    let start = 0;
+    if (mid >= prevMid) {
+      start = (prevMid + mid) / 2;
+    } else {
+      start = (prevMid + mid + 360) / 2 % 360;
+    }
+    let end = 0;
+    if (nextMid >= mid) {
+      end = (mid + nextMid) / 2;
+    } else {
+      end = (mid + nextMid + 360) / 2 % 360;
+    }
+    const signIdx = Math.floor(mid / 30);
+    cuspDetails.push({
+      houseNumber: i + 1,
+      startLongitude: start,
+      midLongitude: mid,
+      endLongitude: end,
+      signIndex: signIdx,
+      signName: zodiacSigns[signIdx].eng,
+      signHindi: zodiacSigns[signIdx].hin,
+      signLord: SIGN_LORDS[signIdx]
+    });
+  }
+  const bodies = [
+    { id: SE_SUN, name: "Sun", hindiName: "\u0938\u0942\u0930\u094D\u092F" },
+    { id: SE_MOON, name: "Moon", hindiName: "\u091A\u0928\u094D\u0926\u094D\u0930" },
+    { id: SE_MARS, name: "Mars", hindiName: "\u092E\u0902\u0917\u0932" },
+    { id: SE_MERCURY, name: "Mercury", hindiName: "\u092C\u0941\u0927" },
+    { id: SE_JUPITER, name: "Jupiter", hindiName: "\u0917\u0941\u0930\u0941" },
+    { id: SE_VENUS, name: "Venus", hindiName: "\u0936\u0941\u0915\u094D\u0930" },
+    { id: SE_SATURN, name: "Saturn", hindiName: "\u0936\u0928\u093F" },
+    { id: SE_MEAN_NODE, name: "Rahu", hindiName: "\u0930\u093E\u0939\u0941" }
+  ];
+  const planets = [];
+  let sunLon = 0;
+  for (const b of bodies) {
+    const calc = drik_calc_ut(jd_ut, b.id);
+    const sidLon = (calc[0] - ayanamsa + 360) % 360;
+    const speed = calc[3];
+    const signIdx = Math.floor(sidLon / 30);
+    const degInSign = sidLon % 30;
+    const naks = getNakshatraInfo(sidLon);
+    if (b.id === SE_SUN) {
+      sunLon = sidLon;
+    }
+    const houseFromLagna = (signIdx - ascSignIdx + 12) % 12 + 1;
+    planets.push({
+      id: b.id,
+      name: b.name,
+      hindiName: b.hindiName,
+      longitude: sidLon,
+      latitude: calc[1],
+      speed,
+      isRetrograde: speed < 0,
+      isCombust: false,
+      // Calculated after Sun is known
+      signIndex: signIdx,
+      signName: zodiacSigns[signIdx].eng,
+      signHindi: zodiacSigns[signIdx].hin,
+      degreeInSign: degInSign,
+      degreeFormatted: formatDegrees(degInSign),
+      nakshatraIndex: naks.index,
+      nakshatraName: naks.name,
+      nakshatraPada: naks.pada,
+      nakshatraLord: naks.lord,
+      houseOccupied: houseFromLagna
+    });
+  }
+  const rahu = planets.find((p) => p.name === "Rahu");
+  const ketuLon = (rahu.longitude + 180) % 360;
+  const ketuSignIdx = Math.floor(ketuLon / 30);
+  const ketuDegInSign = ketuLon % 30;
+  const ketuNaks = getNakshatraInfo(ketuLon);
+  const ketuHouse = (ketuSignIdx - ascSignIdx + 12) % 12 + 1;
+  planets.push({
+    id: SE_KETU,
+    name: "Ketu",
+    hindiName: "\u0915\u0947\u0924\u0941",
+    longitude: ketuLon,
+    latitude: 0,
+    speed: rahu.speed,
+    isRetrograde: true,
+    isCombust: false,
+    signIndex: ketuSignIdx,
+    signName: zodiacSigns[ketuSignIdx].eng,
+    signHindi: zodiacSigns[ketuSignIdx].hin,
+    degreeInSign: ketuDegInSign,
+    degreeFormatted: formatDegrees(ketuDegInSign),
+    nakshatraIndex: ketuNaks.index,
+    nakshatraName: ketuNaks.name,
+    nakshatraPada: ketuNaks.pada,
+    nakshatraLord: ketuNaks.lord,
+    houseOccupied: ketuHouse
+  });
+  for (const p of planets) {
+    if (p.name !== "Sun" && p.name !== "Rahu" && p.name !== "Ketu") {
+      const orb = COMBUSTION_ORBS[p.name] || 12;
+      let diff = Math.abs(p.longitude - sunLon);
+      if (diff > 180) diff = 360 - diff;
+      p.isCombust = diff <= orb;
+    }
+  }
+  return {
+    birthDate,
+    latitude,
+    longitude,
+    jd_ut,
+    ayanamsa,
+    ayanamshaSystem,
+    ascendant: {
+      longitude: siderealAsc,
+      signIndex: ascSignIdx,
+      signName: zodiacSigns[ascSignIdx].eng,
+      signHindi: zodiacSigns[ascSignIdx].hin,
+      degreeInSign: ascDegInSign,
+      degreeFormatted: formatDegrees(ascDegInSign),
+      nakshatraIndex: ascNaks.index,
+      nakshatraName: ascNaks.name,
+      nakshatraPada: ascNaks.pada,
+      nakshatraLord: ascNaks.lord,
+      signLord: SIGN_LORDS[ascSignIdx]
+    },
+    midheaven: {
+      longitude: siderealMC,
+      signIndex: Math.floor(siderealMC / 30),
+      signName: zodiacSigns[Math.floor(siderealMC / 30)].eng
+    },
+    houseSystem,
+    cusps: cuspDetails,
+    planets
+  };
+}
+
 // src/astronomicalEngine.ts
 var panchangCacheClearer = null;
 function registerPanchangCacheClearer(fn) {
@@ -3041,6 +3355,7 @@ function registerPanchangCacheClearer(fn) {
 var solarCache = /* @__PURE__ */ new Map();
 var moonCache = /* @__PURE__ */ new Map();
 var positionCache = /* @__PURE__ */ new Map();
+var kundliCache = /* @__PURE__ */ new Map();
 var pendingQueries = /* @__PURE__ */ new Set();
 var activeExpectedKeys = /* @__PURE__ */ new Set();
 var updateListener = null;
@@ -3089,42 +3404,107 @@ function retryEngineInitialization() {
     updateListener();
   }
 }
-function getPositionCacheKey(date) {
-  return `POS_${date.getFullYear()}_${date.getMonth() + 1}_${date.getDate()}_H${date.getHours()}`;
+function getPositionCacheKey(date, offsetHours) {
+  const tzSuffix = typeof offsetHours === "number" ? `_TZ${offsetHours}` : "";
+  return `POS_${date.getTime()}${tzSuffix}`;
+}
+function getSolarCacheKey(lat, lon, date, offsetHours) {
+  const dStr = date.toISOString().split("T")[0];
+  const tzSuffix = typeof offsetHours === "number" ? `_TZ${offsetHours}` : "";
+  return `SOLAR_${lat.toFixed(4)}_${lon.toFixed(4)}_${dStr}${tzSuffix}`;
+}
+function getMoonCacheKey(lat, lon, date, offsetHours) {
+  const dStr = date.toISOString().split("T")[0];
+  const tzSuffix = typeof offsetHours === "number" ? `_TZ${offsetHours}` : "";
+  return `MOON_${lat.toFixed(4)}_${lon.toFixed(4)}_${dStr}${tzSuffix}`;
+}
+function getKundliCacheKey(lat, lon, date, houseSystem, ayanamsha) {
+  return `KUNDLI_${lat.toFixed(4)}_${lon.toFixed(4)}_${date.getTime()}_${houseSystem}_${ayanamsha}`;
 }
 var SanatanProprietaryAstronomicalEngine = class {
   isReady() {
     return isEngineReady;
   }
-  getSolarTimes(lat, lon, date) {
-    const cacheKey = `SOLAR_${lat.toFixed(4)}_${lon.toFixed(4)}_${date.toDateString()}`;
+  getSolarTimes(lat, lon, date, offsetHours) {
+    if (typeof lat !== "number" || isNaN(lat) || lat < -90 || lat > 90) {
+      throw new Error(`Invalid latitude: ${lat}. Must be between -90 and 90.`);
+    }
+    if (typeof lon !== "number" || isNaN(lon) || lon < -180 || lon > 180) {
+      throw new Error(`Invalid longitude: ${lon}. Must be between -180 and 180.`);
+    }
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      throw new Error(`Invalid date provided for solar times calculation.`);
+    }
+    const cacheKey = getSolarCacheKey(lat, lon, date, offsetHours);
     const cached = solarCache.get(cacheKey);
     if (cached) {
       return cached;
     }
-    const result = calculateSolarTimesCore(lat, lon, date);
+    const result = calculateSolarTimesCore(lat, lon, date, offsetHours);
     solarCache.set(cacheKey, result);
     return result;
   }
-  getMoonTimes(sunriseMin, sunsetMin, tithiIdx, date, lat, lon) {
-    const cacheKey = `MOON_${lat.toFixed(4)}_${lon.toFixed(4)}_${date.toDateString()}`;
+  getMoonTimes(sunriseMin, sunsetMin, tithiIdx, date, lat, lon, offsetHours) {
+    if (typeof lat !== "number" || isNaN(lat) || lat < -90 || lat > 90) {
+      throw new Error(`Invalid latitude: ${lat}. Must be between -90 and 90.`);
+    }
+    if (typeof lon !== "number" || isNaN(lon) || lon < -180 || lon > 180) {
+      throw new Error(`Invalid longitude: ${lon}. Must be between -180 and 180.`);
+    }
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      throw new Error(`Invalid date provided for moon times calculation.`);
+    }
+    const cacheKey = getMoonCacheKey(lat, lon, date, offsetHours);
     const cached = moonCache.get(cacheKey);
     if (cached) {
       return cached;
     }
-    const result = calculateMoonTimesCore(lat, lon, date);
+    const result = calculateMoonTimesCore(lat, lon, date, offsetHours);
     moonCache.set(cacheKey, result);
     return result;
   }
-  getPanchangPositions(date) {
-    const cacheKey = getPositionCacheKey(date);
+  getPanchangPositions(date, offsetHours) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      throw new Error(`Invalid date provided for panchang positions calculation.`);
+    }
+    const cacheKey = getPositionCacheKey(date, offsetHours);
     const cached = positionCache.get(cacheKey);
     if (cached) {
       return cached;
     }
-    const result = calculatePanchangPositionsCore(date);
+    const result = calculatePanchangPositionsCore(date, offsetHours);
     positionCache.set(cacheKey, result);
     return result;
+  }
+  getNatalChart(lat, lon, date, houseSystem = "Sripati", ayanamsha = "Lahiri") {
+    if (typeof lat !== "number" || isNaN(lat) || lat < -90 || lat > 90) {
+      throw new Error(`Invalid latitude: ${lat}. Must be between -90 and 90.`);
+    }
+    if (typeof lon !== "number" || isNaN(lon) || lon < -180 || lon > 180) {
+      throw new Error(`Invalid longitude: ${lon}. Must be between -180 and 180.`);
+    }
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      throw new Error(`Invalid date provided for natal calculation.`);
+    }
+    const cacheKey = getKundliCacheKey(lat, lon, date, houseSystem, ayanamsha);
+    const cached = kundliCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    const result = calculateNatalChart(date, lat, lon, {
+      houseSystem,
+      ayanamshaSystem: ayanamsha
+    });
+    kundliCache.set(cacheKey, result);
+    return result;
+  }
+  getAscendant(lat, lon, date, ayanamsha = "Lahiri") {
+    const chart = this.getNatalChart(lat, lon, date, "Sripati", ayanamsha);
+    return chart.ascendant;
+  }
+  getHouseCusps(lat, lon, date, houseSystem = "Sripati", ayanamsha = "Lahiri") {
+    const chart = this.getNatalChart(lat, lon, date, houseSystem, ayanamsha);
+    return chart.cusps;
   }
 };
 var astronomicalEngine = new SanatanProprietaryAstronomicalEngine();
@@ -7790,265 +8170,6 @@ async function runBulkValidation() {
   console.log(`Failed Assertions/Errors: ${assertionFailCount}`);
   console.log(`Status: ${isSuiteSuccess ? "PASS \u2705" : "FAIL \u274C"}`);
   console.log("==================================================");
-}
-
-// src/kundli/houseCusps.ts
-var NAKSHATRA_NAMES = [
-  "Ashwini",
-  "Bharani",
-  "Krittika",
-  "Rohini",
-  "Mrigashira",
-  "Ardra",
-  "Punarvasu",
-  "Pushya",
-  "Ashlesha",
-  "Magha",
-  "Purva Phalguni",
-  "Uttara Phalguni",
-  "Hasta",
-  "Chitra",
-  "Swati",
-  "Vishakha",
-  "Anuradha",
-  "Jyeshtha",
-  "Mula",
-  "Purva Ashadha",
-  "Uttara Ashadha",
-  "Shravana",
-  "Dhanishta",
-  "Shatabhisha",
-  "Purva Bhadrapada",
-  "Uttara Bhadrapada",
-  "Revati"
-];
-var NAKSHATRA_LORDS = [
-  "Ketu",
-  "Venus",
-  "Sun",
-  "Moon",
-  "Mars",
-  "Rahu",
-  "Jupiter",
-  "Saturn",
-  "Mercury",
-  "Ketu",
-  "Venus",
-  "Sun",
-  "Moon",
-  "Mars",
-  "Rahu",
-  "Jupiter",
-  "Saturn",
-  "Mercury",
-  "Ketu",
-  "Venus",
-  "Sun",
-  "Moon",
-  "Mars",
-  "Rahu",
-  "Jupiter",
-  "Saturn",
-  "Mercury"
-];
-var SIGN_LORDS = [
-  "Mars",
-  "Venus",
-  "Mercury",
-  "Moon",
-  "Sun",
-  "Mercury",
-  "Venus",
-  "Mars",
-  "Jupiter",
-  "Saturn",
-  "Saturn",
-  "Jupiter"
-];
-var COMBUSTION_ORBS = {
-  Moon: 12,
-  Mars: 17,
-  Mercury: 14,
-  Jupiter: 11,
-  Venus: 10,
-  Saturn: 15
-};
-function formatDegrees(deg) {
-  const norm = (deg % 360 + 360) % 360;
-  const d = Math.floor(norm);
-  const mFloat = (norm - d) * 60;
-  const m = Math.floor(mFloat);
-  const s = Math.floor((mFloat - m) * 60);
-  return `${d.toString().padStart(2, "0")}\xB0${m.toString().padStart(2, "0")}'${s.toString().padStart(2, "0")}"`;
-}
-function getNakshatraInfo(longitude) {
-  const norm = (longitude % 360 + 360) % 360;
-  const naksSpan = 13.333333333333334;
-  const index = Math.floor(norm / naksSpan) % 27;
-  const rem = norm % naksSpan;
-  const pada = Math.floor(rem / 3.3333333333333335) + 1;
-  return {
-    index,
-    name: NAKSHATRA_NAMES[index],
-    pada: Math.min(4, Math.max(1, pada)),
-    lord: NAKSHATRA_LORDS[index]
-  };
-}
-function calculateNatalChart(birthDate, latitude, longitude, options = {}) {
-  const houseSystem = options.houseSystem || "Sripati";
-  const ayanamshaSystem = options.ayanamshaSystem || "Lahiri";
-  let sysChar = "O";
-  if (houseSystem === "Placidus") sysChar = "P";
-  if (houseSystem === "EqualHouse") sysChar = "E";
-  const jd_ut = birthDate.getTime() / 864e5 + 24405875e-1;
-  const ayanamsa = getAyanamshaForSystem(jd_ut, ayanamshaSystem);
-  const houses = drik_houses(jd_ut, latitude, longitude, sysChar);
-  const siderealAsc = (houses.ascmc[0] - ayanamsa + 360) % 360;
-  const siderealMC = (houses.ascmc[1] - ayanamsa + 360) % 360;
-  const ascSignIdx = Math.floor(siderealAsc / 30);
-  const ascDegInSign = siderealAsc % 30;
-  const ascNaks = getNakshatraInfo(siderealAsc);
-  const rawCusps = [];
-  for (let i = 1; i <= 12; i++) {
-    rawCusps.push((houses.cusps[i] - ayanamsa + 360) % 360);
-  }
-  const cuspDetails = [];
-  for (let i = 0; i < 12; i++) {
-    const mid = rawCusps[i];
-    const prevMid = rawCusps[(i + 11) % 12];
-    const nextMid = rawCusps[(i + 1) % 12];
-    let start = 0;
-    if (mid >= prevMid) {
-      start = (prevMid + mid) / 2;
-    } else {
-      start = (prevMid + mid + 360) / 2 % 360;
-    }
-    let end = 0;
-    if (nextMid >= mid) {
-      end = (mid + nextMid) / 2;
-    } else {
-      end = (mid + nextMid + 360) / 2 % 360;
-    }
-    const signIdx = Math.floor(mid / 30);
-    cuspDetails.push({
-      houseNumber: i + 1,
-      startLongitude: start,
-      midLongitude: mid,
-      endLongitude: end,
-      signIndex: signIdx,
-      signName: zodiacSigns[signIdx].eng,
-      signHindi: zodiacSigns[signIdx].hin,
-      signLord: SIGN_LORDS[signIdx]
-    });
-  }
-  const bodies = [
-    { id: SE_SUN, name: "Sun", hindiName: "\u0938\u0942\u0930\u094D\u092F" },
-    { id: SE_MOON, name: "Moon", hindiName: "\u091A\u0928\u094D\u0926\u094D\u0930" },
-    { id: SE_MARS, name: "Mars", hindiName: "\u092E\u0902\u0917\u0932" },
-    { id: SE_MERCURY, name: "Mercury", hindiName: "\u092C\u0941\u0927" },
-    { id: SE_JUPITER, name: "Jupiter", hindiName: "\u0917\u0941\u0930\u0941" },
-    { id: SE_VENUS, name: "Venus", hindiName: "\u0936\u0941\u0915\u094D\u0930" },
-    { id: SE_SATURN, name: "Saturn", hindiName: "\u0936\u0928\u093F" },
-    { id: SE_MEAN_NODE, name: "Rahu", hindiName: "\u0930\u093E\u0939\u0941" }
-  ];
-  const planets = [];
-  let sunLon = 0;
-  for (const b of bodies) {
-    const calc = drik_calc_ut(jd_ut, b.id);
-    const sidLon = (calc[0] - ayanamsa + 360) % 360;
-    const speed = calc[3];
-    const signIdx = Math.floor(sidLon / 30);
-    const degInSign = sidLon % 30;
-    const naks = getNakshatraInfo(sidLon);
-    if (b.id === SE_SUN) {
-      sunLon = sidLon;
-    }
-    const houseFromLagna = (signIdx - ascSignIdx + 12) % 12 + 1;
-    planets.push({
-      id: b.id,
-      name: b.name,
-      hindiName: b.hindiName,
-      longitude: sidLon,
-      latitude: calc[1],
-      speed,
-      isRetrograde: speed < 0,
-      isCombust: false,
-      // Calculated after Sun is known
-      signIndex: signIdx,
-      signName: zodiacSigns[signIdx].eng,
-      signHindi: zodiacSigns[signIdx].hin,
-      degreeInSign: degInSign,
-      degreeFormatted: formatDegrees(degInSign),
-      nakshatraIndex: naks.index,
-      nakshatraName: naks.name,
-      nakshatraPada: naks.pada,
-      nakshatraLord: naks.lord,
-      houseOccupied: houseFromLagna
-    });
-  }
-  const rahu = planets.find((p) => p.name === "Rahu");
-  const ketuLon = (rahu.longitude + 180) % 360;
-  const ketuSignIdx = Math.floor(ketuLon / 30);
-  const ketuDegInSign = ketuLon % 30;
-  const ketuNaks = getNakshatraInfo(ketuLon);
-  const ketuHouse = (ketuSignIdx - ascSignIdx + 12) % 12 + 1;
-  planets.push({
-    id: SE_KETU,
-    name: "Ketu",
-    hindiName: "\u0915\u0947\u0924\u0941",
-    longitude: ketuLon,
-    latitude: 0,
-    speed: rahu.speed,
-    isRetrograde: true,
-    isCombust: false,
-    signIndex: ketuSignIdx,
-    signName: zodiacSigns[ketuSignIdx].eng,
-    signHindi: zodiacSigns[ketuSignIdx].hin,
-    degreeInSign: ketuDegInSign,
-    degreeFormatted: formatDegrees(ketuDegInSign),
-    nakshatraIndex: ketuNaks.index,
-    nakshatraName: ketuNaks.name,
-    nakshatraPada: ketuNaks.pada,
-    nakshatraLord: ketuNaks.lord,
-    houseOccupied: ketuHouse
-  });
-  for (const p of planets) {
-    if (p.name !== "Sun" && p.name !== "Rahu" && p.name !== "Ketu") {
-      const orb = COMBUSTION_ORBS[p.name] || 12;
-      let diff = Math.abs(p.longitude - sunLon);
-      if (diff > 180) diff = 360 - diff;
-      p.isCombust = diff <= orb;
-    }
-  }
-  return {
-    birthDate,
-    latitude,
-    longitude,
-    jd_ut,
-    ayanamsa,
-    ayanamshaSystem,
-    ascendant: {
-      longitude: siderealAsc,
-      signIndex: ascSignIdx,
-      signName: zodiacSigns[ascSignIdx].eng,
-      signHindi: zodiacSigns[ascSignIdx].hin,
-      degreeInSign: ascDegInSign,
-      degreeFormatted: formatDegrees(ascDegInSign),
-      nakshatraIndex: ascNaks.index,
-      nakshatraName: ascNaks.name,
-      nakshatraPada: ascNaks.pada,
-      nakshatraLord: ascNaks.lord,
-      signLord: SIGN_LORDS[ascSignIdx]
-    },
-    midheaven: {
-      longitude: siderealMC,
-      signIndex: Math.floor(siderealMC / 30),
-      signName: zodiacSigns[Math.floor(siderealMC / 30)].eng
-    },
-    houseSystem,
-    cusps: cuspDetails,
-    planets
-  };
 }
 
 // src/kundli/charts/northIndianChart.ts

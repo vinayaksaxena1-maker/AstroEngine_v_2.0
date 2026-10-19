@@ -139,7 +139,7 @@ export declare const Grahas: {
     name: string;
     hindiName: string;
 }[];
-export declare function calculateTimezoneOffset(lat: number, lon: number): number;
+export declare function calculateTimezoneOffset(lat: number, lon: number, ianaTimezone?: string, date?: Date): number;
 export declare function jdToLocalMinutes(jd: number, offsetHours: number): number;
 export declare function formatRawMin(m: number): string;
 export declare function findBoundaryCrossing(jdMidnight: number, type: 'tithi' | 'nakshatra' | 'yoga' | 'karana', targetVal: number): number;

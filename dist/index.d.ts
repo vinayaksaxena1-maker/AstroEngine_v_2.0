@@ -8,7 +8,7 @@
  */
 export * from './types';
 export { astronomicalEngine, registerEngineListener, isReady, isEngineCalculating, registerActiveExpectedKeys, isTimeoutTriggered, getEngineProgressStage, getRetryCount, getLastDiagnosticInfo, isMaxRetriesReached, extendInitializationTimeout, retryEngineInitialization, registerPanchangCacheClearer } from './astronomicalEngine';
-export type { SolarTimes, MoonTimes, PlanetPosition, PanchangPositions, AstronomicalEngine } from './astronomicalEngine';
+export type { SolarTimes, MoonTimes, PlanetPosition, PanchangPositions, AscendantDetail, BhavaCuspDetail, NatalPlanetDetail, NatalChartData, AstronomicalEngine } from './astronomicalEngine';
 export { drik_calc_ut, drik_rise_trans, drik_houses, drik_get_ayanamsa_ut, getAyanamshaForSystem, drik_julday, drik_revjul, drik_set_sid_mode, swe_calc_ut, swe_rise_trans, swe_houses, swe_get_ayanamsa_ut, swe_get_ayanamsa, swe_julday, swe_revjul, swe_set_sid_mode, calculateSolarTimesCore, calculateMoonTimesCore, calculatePanchangPositionsCore, calculateTimezoneOffset, findBoundaryCrossing, findNewMoonJd, SE_SUN, SE_MOON, SE_MERCURY, SE_VENUS, SE_MARS, SE_JUPITER, SE_SATURN, SE_MEAN_NODE, SE_TRUE_NODE, SE_KETU, SEFLG_SWIEPH, SEFLG_SPEED, SEFLG_SIDEREAL, SE_SIDM_LAHIRI } from './core/sanatan_jpl_bridge';
 export type { AyanamshaSystem } from './core/sanatan_jpl_bridge';
 export { getPanchangForDate, clearPanchangCache, getMuhuratsForPanchang, getChoghadiyaPresentationData, calculateIshtakala, calculatePaya, calculateDagdaTithi, calculateShivaVaas, calculateAgniVaas, calculatePushkarYog, calculateSolarTimes, TITHI_DETAILS, NAKSHATRA_DETAILS, YOGA_DETAILS, KARANA_DETAILS, MONTHS_ENGLISH_HINDI, INDIAN_CITIES, FESTVALS_PRESETS } from './panchangCalc';

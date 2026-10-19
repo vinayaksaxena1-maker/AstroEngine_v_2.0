@@ -5,16 +5,22 @@
  * Powered by astronomy-engine (MIT License) with JPL-calibrated models.
  * Provides synchronous, instantaneous Vedic Panchang & Astronomical calculations.
  */
-import { SolarTimesResult, MoonTimesResult, PanchangPositionsResult, PlanetPositionResult } from './core/sanatan_jpl_bridge';
+import { SolarTimesResult, MoonTimesResult, PanchangPositionsResult, PlanetPositionResult, AyanamshaSystem } from './core/sanatan_jpl_bridge';
+import { NatalChartData, BhavaCuspDetail, NatalPlanetDetail } from './kundli/houseCusps';
 export declare function registerPanchangCacheClearer(fn: () => void): void;
 export type SolarTimes = SolarTimesResult;
 export type MoonTimes = MoonTimesResult;
 export type PlanetPosition = PlanetPositionResult;
 export type PanchangPositions = PanchangPositionsResult;
+export type AscendantDetail = NatalChartData['ascendant'];
+export type { BhavaCuspDetail, NatalPlanetDetail, NatalChartData };
 export interface AstronomicalEngine {
-    getSolarTimes(lat: number, lon: number, date: Date): SolarTimes;
-    getMoonTimes(sunriseMin: number, sunsetMin: number, tithiIdx: number, date: Date, lat: number, lon: number): MoonTimes;
-    getPanchangPositions(date: Date): PanchangPositions;
+    getSolarTimes(lat: number, lon: number, date: Date, offsetHours?: number): SolarTimes;
+    getMoonTimes(sunriseMin: number, sunsetMin: number, tithiIdx: number, date: Date, lat: number, lon: number, offsetHours?: number): MoonTimes;
+    getPanchangPositions(date: Date, offsetHours?: number): PanchangPositions;
+    getAscendant(lat: number, lon: number, date: Date, ayanamsha?: AyanamshaSystem): AscendantDetail;
+    getHouseCusps(lat: number, lon: number, date: Date, houseSystem?: 'Sripati' | 'Placidus' | 'EqualHouse', ayanamsha?: AyanamshaSystem): BhavaCuspDetail[];
+    getNatalChart(lat: number, lon: number, date: Date, houseSystem?: 'Sripati' | 'Placidus' | 'EqualHouse', ayanamsha?: AyanamshaSystem): NatalChartData;
     isReady(): boolean;
 }
 export declare function registerEngineListener(callback: () => void): void;

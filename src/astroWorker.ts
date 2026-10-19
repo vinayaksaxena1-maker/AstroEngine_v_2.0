@@ -10,6 +10,7 @@ import {
   calculateMoonTimesCore,
   calculatePanchangPositionsCore
 } from './core/sanatan_jpl_bridge';
+import { calculateNatalChart } from './kundli/houseCusps';
 
 self.postMessage({
   type: 'PROGRESS',
@@ -18,7 +19,7 @@ self.postMessage({
 });
 
 self.onmessage = async (event: MessageEvent) => {
-  const { type, key, lat, lon, date, offsetHours } = event.data;
+  const { type, key, lat, lon, date, offsetHours, options } = event.data;
 
   if (type === 'INIT') {
     self.postMessage({
@@ -58,6 +59,12 @@ self.onmessage = async (event: MessageEvent) => {
 
     if (type === 'CALCULATE_COORDINATES') {
       const data = calculatePanchangPositionsCore(parsedDate, offsetHours);
+      self.postMessage({ type: 'RESULT', key, data });
+      return;
+    }
+
+    if (type === 'CALCULATE_NATAL') {
+      const data = calculateNatalChart(parsedDate, lat, lon, options);
       self.postMessage({ type: 'RESULT', key, data });
       return;
     }
